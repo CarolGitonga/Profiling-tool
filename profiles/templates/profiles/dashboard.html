@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Profile Dashboard</title>
+</head>
+<body>
+<h1>Profile for {{ profile.username }}</h1>
+<p><strong>Platform:</strong> {{ profile.platform }}</p>
+<p><strong>Full Name:</strong> {{ profile.full_name }}</p>
+<p><strong>Date Profiled:</strong> {{ profile.date_profiled }}</p>
+<a href="/profiles/search/">Back to Search</a>
+
+<form action="{% url 'unscrape_twitter' profile.username %}" method="post">
+{% csrf_token %}
+<button type="submit">Remove Twitter Data</button>
+</form>
+</body>
+</html>
