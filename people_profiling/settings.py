@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 import os
 from pathlib import Path
+from decouple import config
+TWITTER_API_KEY = config('TWITTER_API_KEY')
+TWITTER_API_SECRET = config('TWITTER_API_SECRET')
+TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

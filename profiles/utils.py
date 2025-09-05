@@ -2,6 +2,9 @@ import requests
 from datetime import datetime
 from .models import Profile, SocialMediaAccount
 from bs4 import BeautifulSoup
+from django.conf import settings
+
+api_key = settings.TWITTER_API_KEY
 
 def scrape_twitter_bio(username):
     url = f"https://x.com/{username}"
