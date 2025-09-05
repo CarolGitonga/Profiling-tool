@@ -1,18 +1,68 @@
+
 <!DOCTYPE html>
 <html>
 <head>
-<title>Profile Dashboard</title>
+    <title>User Profile Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        .card img {
+            width: 100px;
+            border-radius: 50%;
+        }
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .remove-btn:hover {
+            background: #c82333;
+        }
+    </style>
 </head>
 <body>
-<h1>Profile for {{ profile.username }}</h1>
-<p><strong>Platform:</strong> {{ profile.platform }}</p>
-<p><strong>Full Name:</strong> {{ profile.full_name }}</p>
-<p><strong>Date Profiled:</strong> {{ profile.date_profiled }}</p>
-<a href="/profiles/search/">Back to Search</a>
 
-<form action="{% url 'unscrape_twitter' profile.username %}" method="post">
-{% csrf_token %}
-<button type="submit">Remove Twitter Data</button>
-</form>
+{% if profile %}
+    <h1>Dashboard for <strong>{{ profile.username }}</strong></h1>
+
+    <div class="card">
+        <h2>{{ profile.platform }} Profile</h2>
+
+        {% if profile.avatar_url %}
+            <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar"><br>
+        {% endif %}
+
+        <p><strong>Full Name:</strong> {{ profile.full_name }}</p>
+        <p><strong>Date Profiled:</strong> {{ profile.date_profiled }}</p>
+
+        {% with account=profile.socialmediaaccount_set.first %}
+            {% if account %}
+                <p><strong>Bio:</strong> {{ account.bio }}</p>
+                <form action="{% url 'unscrape_'|add:profile.platform|lower profile.username %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="remove-btn">Remove {{ profile.platform }} Data</button>
+                </form>
+            {% else %}
+                <p>No bio data found for {{ profile.platform }}.</p>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+{% else %}
+    <p>No profile found.</p>
+{% endif %}
+
+<br>
+<a href="{% url 'search_profile' %}">← Back to Search</a>
+
 </body>
 </html>
