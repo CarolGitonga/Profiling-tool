@@ -4,6 +4,8 @@ from .forms import UsernameSearchForm
 from .utils import scrape_twitter_bio, unscrape_twitter_bio, scrape_github_profile, unscrape_github_profile
 # from profiles.utils import unscrape_twitter_bio
 from django.contrib import messages
+from dateutil.parser import parse as parse_date
+
 
 # Create your views here.
 def search_profile(request):
@@ -37,6 +39,13 @@ def search_profile(request):
                 profile, _ = Profile.objects.get_or_create(username=username, platform='GitHub')
                 profile.full_name = github_data['name']
                 profile.avatar_url = f"https://github.com/{username}.png"
+
+                if github_data['created_at']:
+                    profile.github_created_at = parse_date(github_data['created_at'])
+
+                profile.location = github_data.get('location')
+                profile.company = github_data.get('company') 
+                profile.blog = github_data.get('blog')   
                 profile.save()
 
                  # Save or update social media account info
@@ -45,7 +54,9 @@ def search_profile(request):
                     platform='GitHub',
                     defaults={ 
                       'bio': github_data['bio'],
-                      'followers': 0,
+                      'followers': github_data['followers'] or 0,
+                      'following': github_data['following'] or 0,
+                      'public_repos': github_data['public_repos'] or 0,
                       'posts_collected': 0,
                     }
                 )    
@@ -74,14 +85,15 @@ def delete_github_data(request, username):
         messages.error(request, "GitHub profile not found or already removed.")
     return redirect('search_profile')
 
-def profile_dashboard_all(request, username):
-     # Make case-insensitive match
-     profiles = Profile.objects.filter(username__iexact=username)
-     accounts = SocialMediaAccount.objects.filter(profile__in=profiles)
-     return render(request, 'profiles/dashboard.html', {
-          'profiles': profiles,
-          'accounts': accounts
-           })
+def profile_dashboard(request, pk):
+    profile = get_object_or_404(Profile, pk=pk)
+    profiles = [profile]  # wrap single profile in a list
+    accounts = SocialMediaAccount.objects.filter(profile=profile)
+    return render(request, 'profiles/dashboard.html', {
+        'profiles': profiles,
+        'accounts': accounts,
+    })
+
 
 
    

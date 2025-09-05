@@ -1,4 +1,4 @@
-
+{% load profile_extras %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -31,34 +31,51 @@
 </head>
 <body>
 
-{% if profile %}
-    <h1>Dashboard for <strong>{{ profile.username }}</strong></h1>
+{% if profiles %}
+    <h1>Dashboard for <strong>{{ profiles.0.username }}</strong></h1>
 
-    <div class="card">
-        <h2>{{ profile.platform }} Profile</h2>
+    {% for profile in profiles %}
+        <div class="card">
+            <h2>{{ profile.platform }} Profile</h2>
 
-        {% if profile.avatar_url %}
-            <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar"><br>
-        {% endif %}
-
-        <p><strong>Full Name:</strong> {{ profile.full_name }}</p>
-        <p><strong>Date Profiled:</strong> {{ profile.date_profiled }}</p>
-
-        {% with account=profile.socialmediaaccount_set.first %}
-            {% if account %}
-                <p><strong>Bio:</strong> {{ account.bio }}</p>
-                <form action="{% url 'unscrape_'|add:profile.platform|lower profile.username %}" method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="remove-btn">Remove {{ profile.platform }} Data</button>
-                </form>
-            {% else %}
-                <p>No bio data found for {{ profile.platform }}.</p>
+            {% if profile.avatar_url %}
+                <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar"><br>
             {% endif %}
-        {% endwith %}
-    </div>
+
+            <p><strong>Full Name:</strong> {{ profile.full_name }}</p>
+            {% if profile.date_profiled %}
+             <p><em>Profiled {{ profile.date_profiled|timesince }} ago</em></p>
+            {% endif %}
+
+
+            {% if profile.platform == "GitHub" %}
+                {% if profile.github_created_at %}
+                    <p><strong>Account Created:</strong> {{ profile.github_created_at|date:"F j, Y" }}</p>
+                {% endif %}
+                {% if profile.location %}<p><strong>Location:</strong> {{ profile.location }}</p>{% endif %}
+                {% if profile.company %}<p><strong>Company:</strong> {{ profile.company }}</p>{% endif %}
+                {% if profile.blog %}<p><strong>Blog:</strong> <a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a></p>{% endif %}
+            {% endif %}
+
+            {% with accounts|get_account_for:profile as platform_account %}
+                {% if platform_account %}
+                    <p><strong>Bio:</strong> {{ platform_account.bio }}</p>
+                    <p><strong>Followers:</strong> {{ platform_account.followers }}</p>
+                    <p><strong>Following:</strong> {{ platform_account.following }}</p>
+                    <p><strong>Public Repos:</strong> {{ platform_account.public_repos }}</p>
+                    <form action="{% url 'unscrape_'|add:profile.platform|lower profile.username %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="remove-btn">Remove {{ profile.platform }} Data</button>
+                    </form>
+                {% else %}
+                    <p>No bio data found for {{ profile.platform }}.</p>
+                {% endif %}
+            {% endwith %}
+        </div>
+    {% endfor %}
 
 {% else %}
-    <p>No profile found.</p>
+    <p>No profiles found for this user.</p>
 {% endif %}
 
 <br>
