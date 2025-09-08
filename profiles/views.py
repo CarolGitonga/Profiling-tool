@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Profile, SocialMediaAccount
 from .forms import UsernameSearchForm
-from .utils import scrape_twitter_bio, unscrape_twitter_bio, scrape_github_profile, unscrape_github_profile
+from .utils import get_twitter_profile, unscrape_twitter_bio, scrape_github_profile, unscrape_github_profile
 # from profiles.utils import unscrape_twitter_bio
 from django.contrib import messages
 from dateutil.parser import parse as parse_date
@@ -17,18 +17,25 @@ def search_profile(request):
 
             # --- TWITTER ---
             if platform == 'Twitter':
-               bio = scrape_twitter_bio(username)
+               twitter_data = get_twitter_profile(username)
+
+               if not twitter_data:
+                   messages.error(request, f"Could not retrieve Twitter profile for {username}.")
+                   return redirect('search_profile')
+               
+               
                profile, _ = Profile.objects.get_or_create(username=username, platform='Twitter')
-               profile.full_name = username.title()
-               profile.avatar_url = f"https://x.com/{username}/photo"
+               profile.full_name = twitter_data['name']
+               profile.avatar_url = twitter_data['avatar_url']
+               profile.profile_created_at = twitter_data['created_at'] 
                profile.save()
 
                SocialMediaAccount.objects.update_or_create(
                   profile=profile,  
                   platform='Twitter',
                   defaults={ 
-                    'bio': bio,
-                    'followers': 0,
+                    'bio': twitter_data['bio'],
+                    'followers': twitter_data['followers_count'],
                     'posts_collected': 0,
                    }
                 )

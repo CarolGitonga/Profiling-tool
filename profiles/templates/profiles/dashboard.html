@@ -43,34 +43,44 @@
             {% endif %}
 
             <p><strong>Full Name:</strong> {{ profile.full_name }}</p>
-            {% if profile.date_profiled %}
-             <p><em>Profiled {{ profile.date_profiled|timesince }} ago</em></p>
+
+            {% if profile.platform == 'Twitter' %}
+                {% with accounts|get_account_for:profile as twitter_acc %}
+                    {% if twitter_acc %}
+                        <p><strong>Bio:</strong> {{ twitter_acc.bio }}</p>
+                        <p><strong>Followers:</strong> {{ twitter_acc.followers }}</p>
+                        <p><strong>Following:</strong> {{ twitter_acc.following|default:'N/A' }}</p>
+                        <p><strong>Verified:</strong> {{ profile.verified|yesno:"Yes,No" }}</p>
+                        <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
+                        <p><strong>Twitter Joined:</strong> {{ profile.profile_created_at|date:"F Y" }}</p>
+                        <form action="{% url 'unscrape_twitter' profile.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="remove-btn">Remove Twitter Data</button>
+                        </form>
+                    {% endif %}
+                {% endwith %}
+            {% elif profile.platform == 'GitHub' %}
+                {% with accounts|get_account_for:profile as github_acc %}
+                    {% if github_acc %}
+                        <p><strong>Bio:</strong> {{ github_acc.bio }}</p>
+                        <p><strong>Followers:</strong> {{ github_acc.followers }}</p>
+                        <p><strong>Following:</strong> {{ github_acc.following }}</p>
+                        <p><strong>Public Repositories:</strong> {{ github_acc.public_repos }}</p>
+                        <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
+                        <p><strong>Company:</strong> {{ profile.company|default:"Not specified" }}</p>
+                        <p><strong>Website:</strong> 
+                            {% if profile.blog %}<a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a>{% else %}Not specified{% endif %}
+                        </p>
+                        <p><strong>GitHub Joined:</strong> {{ profile.github_created_at|date:"F Y" }}</p>
+                        <form action="{% url 'unscrape_github' profile.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="remove-btn">Remove GitHub Data</button>
+                        </form>
+                    {% endif %}
+                {% endwith %}
             {% endif %}
 
-
-            {% if profile.platform == "GitHub" %}
-                {% if profile.github_created_at %}
-                    <p><strong>Account Created:</strong> {{ profile.github_created_at|date:"F j, Y" }}</p>
-                {% endif %}
-                {% if profile.location %}<p><strong>Location:</strong> {{ profile.location }}</p>{% endif %}
-                {% if profile.company %}<p><strong>Company:</strong> {{ profile.company }}</p>{% endif %}
-                {% if profile.blog %}<p><strong>Blog:</strong> <a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a></p>{% endif %}
-            {% endif %}
-
-            {% with accounts|get_account_for:profile as platform_account %}
-                {% if platform_account %}
-                    <p><strong>Bio:</strong> {{ platform_account.bio }}</p>
-                    <p><strong>Followers:</strong> {{ platform_account.followers }}</p>
-                    <p><strong>Following:</strong> {{ platform_account.following }}</p>
-                    <p><strong>Public Repos:</strong> {{ platform_account.public_repos }}</p>
-                    <form action="{% url 'unscrape_'|add:profile.platform|lower profile.username %}" method="post">
-                        {% csrf_token %}
-                        <button type="submit" class="remove-btn">Remove {{ profile.platform }} Data</button>
-                    </form>
-                {% else %}
-                    <p>No bio data found for {{ profile.platform }}.</p>
-                {% endif %}
-            {% endwith %}
+            <p><em>Profiled {{ profile.date_profiled|timesince }} ago</em></p>
         </div>
     {% endfor %}
 

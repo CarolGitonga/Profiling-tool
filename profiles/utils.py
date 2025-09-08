@@ -3,20 +3,37 @@ from datetime import datetime
 from .models import Profile, SocialMediaAccount
 from bs4 import BeautifulSoup
 from django.conf import settings
+import tweepy
+import time
 
 api_key = settings.TWITTER_API_KEY
 
-def scrape_twitter_bio(username):
-    url = f"https://x.com/{username}"
+def get_twitter_profile(username):
+    client = tweepy.Client(bearer_token=settings.TWITTER_BEARER_TOKEN)
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            bio = soup.find('meta', {'name': 'description'})
-            return bio['content'] if bio else 'N/A'
-    except Exception as e:
-        print(f"Error scraping: {e}")
-    return 'Bio not found'
+        # Get user info
+        user_response = client.get_user(
+            username=username,
+            user_fields=["description", "created_at", "location", "public_metrics", "verified", "profile_image_url", "name"]
+        )
+        user = user_response.data
+        return {
+            'name': user.name,
+            'bio': user.description,
+            'created_at': user.created_at,
+            'location': user.location,
+            'followers_count': user.public_metrics["followers_count"],
+            'following_count': user.public_metrics["following_count"],
+            'verified': user.verified,
+            'avatar_url': user.profile_image_url,
+        }
+    except tweepy.TweepyException as e:
+        print("Twitter API rate limit hit. Waiting 15 minutes...")
+        time.sleep(15 * 60)  # wait 15 minutes
+        return None
+    except tweepy.TweepyException as e:
+        print("Error fetching Twitter profile:", e)
+        return None
 
 def unscrape_twitter_bio(username: str) -> bool:
     """
@@ -30,6 +47,9 @@ def unscrape_twitter_bio(username: str) -> bool:
         return True
     except Profile.DoesNotExist:
         return False
+
+
+
     
 def scrape_github_profile(username):
     url = f"https://api.github.com/users/{username}"
