@@ -1,0 +1,29 @@
+body {
+    padding-top: 60px;
+    background-color: #f4f6f8;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card-platform {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+}
+
+.card-platform:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-platform img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    margin-bottom: 10px;
+}
+
+.card-platform h5 {
+    margin-top: 10px;
+    font-weight: 600;
+}
