@@ -5,19 +5,36 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 import tweepy
 import time
+from django.core.cache import cache
+
 
 api_key = settings.TWITTER_API_KEY
 
-def get_twitter_profile(username):
+def get_twitter_profile(username: str) -> dict:
+    if not username:
+        return None
+    cache_key = f"twitter_profile_{username.lower()}"
+    cached_profile = cache.get(cache_key)
+    if cached_profile:
+        print("Using cached Twitter data for", username)
+        return cached_profile
+    
     client = tweepy.Client(bearer_token=settings.TWITTER_BEARER_TOKEN)
     try:
         # Get user info
         user_response = client.get_user(
             username=username,
-            user_fields=["description", "created_at", "location", "public_metrics", "verified", "profile_image_url", "name"]
+            user_fields=[
+                "description", "created_at", "location", 
+                "public_metrics", "verified", "profile_image_url", "name"
+                ]
         )
         user = user_response.data
-        return {
+        if not user:
+            print(f"No Twitter data found for {username}")
+            return None
+        
+        profile_data = {
             'name': user.name,
             'bio': user.description,
             'created_at': user.created_at,
@@ -27,10 +44,10 @@ def get_twitter_profile(username):
             'verified': user.verified,
             'avatar_url': user.profile_image_url,
         }
-    except tweepy.TweepyException as e:
-        print("Twitter API rate limit hit. Waiting 15 minutes...")
-        time.sleep(15 * 60)  # wait 15 minutes
-        return None
+        # Cache it for 1 hour (3600 seconds)
+        cache.set(cache_key, profile_data, timeout=3600)
+        return profile_data
+    
     except tweepy.TweepyException as e:
         print("Error fetching Twitter profile:", e)
         return None

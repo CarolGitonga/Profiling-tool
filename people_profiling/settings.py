@@ -85,6 +85,15 @@ DATABASES = {
     }
 }
 
+# Simple file-based caching (good for development)
+# use Memcached or Redis for production setups
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": BASE_DIR / "cache",  
+    }
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
