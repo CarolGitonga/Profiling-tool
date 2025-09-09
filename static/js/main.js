@@ -1,11 +1,28 @@
-document.addEventListener('DOMContentLoaded', function () {
-    const platformCards = document.querySelectorAll('.card-platform');
 
-    platformCards.forEach(card => {
+document.addEventListener('DOMContentLoaded', function () {
+    const cards = document.querySelectorAll('.platform-card');
+    const platformInput = document.getElementById('platformInput');
+    const form = document.getElementById('searchForm');
+
+    if (!cards.length || !platformInput || !form) {
+        console.warn("Some DOM elements are missing. Check that your HTML has the correct IDs and classes.");
+        return;
+    }
+
+    cards.forEach(card => {
         card.addEventListener('click', () => {
-            const platform = card.dataset.platform;
-            document.querySelector('#id_platform').value = platform;
-            document.querySelector('#platformForm').submit();
+            // Clear previous active selections
+            cards.forEach(c => c.classList.remove('selected-platform'));
+
+            // Mark clicked card
+            card.classList.add('selected-platform');
+
+            // Set hidden platform value
+            const platform = card.getAttribute('data-platform');
+            platformInput.value = platform;
+
+            // Optional: Auto-submit form
+            form.submit();
         });
     });
 });

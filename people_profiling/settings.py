@@ -16,6 +16,10 @@ TWITTER_API_KEY = config('TWITTER_API_KEY')
 TWITTER_API_SECRET = config('TWITTER_API_SECRET')
 TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN')
 
+
+
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -139,3 +143,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+IG_LOGIN = 'iamcarolgitonga'
+
+SESSION_DIR = os.path.join(BASE_DIR, 'sessions')
+SESSION_FILE = os.path.join(SESSION_DIR, f"{IG_LOGIN}_session")

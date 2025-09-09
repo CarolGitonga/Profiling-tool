@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from profiles.utils.github_scraper import scrape_github_profile, unscrape_github_profile
+from profiles.utils.instagram_scraper import scrape_instagram_profile, unscrape_instagram_profile
+from profiles.utils.twitter_scraper import get_twitter_profile, unscrape_twitter_bio
 from .models import Profile, SocialMediaAccount
 from .forms import UsernameSearchForm
-from .utils import get_twitter_profile, unscrape_twitter_bio, scrape_github_profile, unscrape_github_profile
-# from profiles.utils import unscrape_twitter_bio
 from django.contrib import messages
 from dateutil.parser import parse as parse_date
 
@@ -66,15 +67,34 @@ def search_profile(request):
                       'public_repos': github_data['public_repos'] or 0,
                       'posts_collected': 0,
                     }
-                )    
+                )  
+             # --- INSTAGRAM ---
+            elif platform == 'Instagram':
+                insta_data = scrape_instagram_profile(username)
+                if not insta_data:
+                    messages.error(request, f"Could not retrieve Instagram profile for {username}.")
+                    return redirect('search_profile')
+                
+                profile, _ = Profile.objects.get_or_create(username=username, platform='Instagram')
+                profile.full_name = insta_data['full_name']
+                profile.avatar_url = insta_data['profile_pic_url']
+                profile.save()
+
+                SocialMediaAccount.objects.update_or_create(
+                    profile=profile,
+                    platform='Instagram',
+                    defaults={
+                        'bio': insta_data['bio'],
+                        'followers': insta_data['followers'],
+                        'following': insta_data['following'],
+                        'posts_collected': insta_data['posts'],
+                    }
+                )
+
             return redirect('profile_dashboard', pk=profile.pk)
-    else:
+    else: 
             form = UsernameSearchForm()
     return render(request, 'profiles/search.html', {'form': form})
-
-def profile_dashboard(request, pk):
-    profile = get_object_or_404(Profile, pk=pk)
-    return render(request, 'profiles/dashboard.html', {'profile': profile})
 
 def delete_twitter_data(request, username):
     success = unscrape_twitter_bio(username)
@@ -90,6 +110,14 @@ def delete_github_data(request, username):
         messages.success(request, "GitHub data removed successfully.")
     else:
         messages.error(request, "GitHub profile not found or already removed.")
+    return redirect('search_profile')
+
+def delete_instagram_data(request, username):
+    success = unscrape_instagram_profile(username)
+    if success:
+        messages.success(request, "Instagram data removed successfully.")
+    else:
+        messages.error(request, "Instagram profile not found or already removed.")
     return redirect('search_profile')
 
 def profile_dashboard(request, pk):

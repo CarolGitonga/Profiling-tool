@@ -1,21 +1,32 @@
+
 {% load profile_extras %}
 <!DOCTYPE html>
 <html>
 <head>
     <title>User Profile Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f2f2f2;
+        }
+
         .card {
             border: 1px solid #ddd;
             border-radius: 6px;
             padding: 15px;
             margin-bottom: 20px;
-            background-color: #f9f9f9;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
+
         .card img {
             width: 100px;
+            height: 100px;
+            object-fit: cover;
             border-radius: 50%;
         }
+
         .remove-btn {
             background: #dc3545;
             color: white;
@@ -23,7 +34,9 @@
             padding: 8px 12px;
             border-radius: 4px;
             cursor: pointer;
+            margin-top: 10px;
         }
+
         .remove-btn:hover {
             background: #c82333;
         }
@@ -39,17 +52,38 @@
             <h2>{{ profile.platform }} Profile</h2>
 
             {% if profile.avatar_url %}
-                <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar"><br>
+                <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar" referrerpolicy="no-referrer"
+                 onerror="this.onerror=null; this.src='/static/images/default-avatar.png';" /><br><br>
+            {% else %}
+              <p>No profile image available</p>
             {% endif %}
 
             <p><strong>Full Name:</strong> {{ profile.full_name }}</p>
 
-            {% if profile.platform == 'Twitter' %}
-                {% with accounts|get_account_for:profile as twitter_acc %}
-                    {% if twitter_acc %}
-                        <p><strong>Bio:</strong> {{ twitter_acc.bio }}</p>
-                        <p><strong>Followers:</strong> {{ twitter_acc.followers }}</p>
-                        <p><strong>Following:</strong> {{ twitter_acc.following|default:'N/A' }}</p>
+            {% with accounts|get_account_for:profile as account %}
+                {% if account %}
+                    <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
+                    <p><strong>Followers:</strong> {{ account.followers }}</p>
+                    <p><strong>Following:</strong> {{ account.following }}</p>
+
+                    {% if profile.platform == 'GitHub' %}
+                        <p><strong>Public Repositories:</strong> {{ account.public_repos }}</p>
+                        <p><strong>Company:</strong> {{ profile.company|default:"Not specified" }}</p>
+                        <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
+                        <p><strong>Website:</strong> 
+                            {% if profile.blog %}
+                                <a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a>
+                            {% else %}
+                                Not specified
+                            {% endif %}
+                        </p>
+                        <p><strong>GitHub Joined:</strong> {{ profile.github_created_at|date:"F Y" }}</p>
+                        <form action="{% url 'unscrape_github' profile.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="remove-btn">Remove GitHub Data</button>
+                        </form>
+
+                    {% elif profile.platform == 'Twitter' %}
                         <p><strong>Verified:</strong> {{ profile.verified|yesno:"Yes,No" }}</p>
                         <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
                         <p><strong>Twitter Joined:</strong> {{ profile.profile_created_at|date:"F Y" }}</p>
@@ -57,28 +91,25 @@
                             {% csrf_token %}
                             <button type="submit" class="remove-btn">Remove Twitter Data</button>
                         </form>
-                    {% endif %}
-                {% endwith %}
-            {% elif profile.platform == 'GitHub' %}
-                {% with accounts|get_account_for:profile as github_acc %}
-                    {% if github_acc %}
-                        <p><strong>Bio:</strong> {{ github_acc.bio }}</p>
-                        <p><strong>Followers:</strong> {{ github_acc.followers }}</p>
-                        <p><strong>Following:</strong> {{ github_acc.following }}</p>
-                        <p><strong>Public Repositories:</strong> {{ github_acc.public_repos }}</p>
-                        <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
-                        <p><strong>Company:</strong> {{ profile.company|default:"Not specified" }}</p>
-                        <p><strong>Website:</strong> 
-                            {% if profile.blog %}<a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a>{% else %}Not specified{% endif %}
+
+                    {% elif profile.platform == 'Instagram' %}
+                    
+                        <p><strong>Posts:</strong> {{ account.posts_collected }}</p>
+                        <p><strong>Verified:</strong> {{ account.is_verified|yesno:"Yes,No" }}</p>
+                        <p><strong>External URL:</strong>
+                            {% if profile.blog %}
+                                <a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a>
+                            {% else %}
+                                Not provided
+                            {% endif %}
                         </p>
-                        <p><strong>GitHub Joined:</strong> {{ profile.github_created_at|date:"F Y" }}</p>
-                        <form action="{% url 'unscrape_github' profile.username %}" method="post">
+                        <form action="{% url 'unscrape_instagram' profile.username %}" method="post">
                             {% csrf_token %}
-                            <button type="submit" class="remove-btn">Remove GitHub Data</button>
+                            <button type="submit" class="remove-btn">Remove Instagram Data</button>
                         </form>
                     {% endif %}
-                {% endwith %}
-            {% endif %}
+                {% endif %}
+            {% endwith %}
 
             <p><em>Profiled {{ profile.date_profiled|timesince }} ago</em></p>
         </div>
