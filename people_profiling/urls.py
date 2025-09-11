@@ -22,6 +22,7 @@ from django.conf import settings
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('profiles/', include('profiles.urls')),
+    path('sherlock/', include('sherlock.urls')),
 ]
 
 # Serve media and static files in development

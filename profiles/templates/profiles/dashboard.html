@@ -52,8 +52,7 @@
             <h2>{{ profile.platform }} Profile</h2>
 
             {% if profile.avatar_url %}
-                <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar" referrerpolicy="no-referrer"
-                 onerror="this.onerror=null; this.src='/static/images/default-avatar.png';" /><br><br>
+                <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar"><br><br>
             {% else %}
               <p>No profile image available</p>
             {% endif %}
