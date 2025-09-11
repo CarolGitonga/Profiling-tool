@@ -1,0 +1,9 @@
+<h2>Results for {{ username }}</h2>
+<ul>
+    {% for line in results %}
+        <li>{{ line }}</li>
+    {% empty %}
+        <li>No results found.</li>
+    {% endfor %}
+</ul>
+<a href="{% url 'sherlock_search' %}">← New Search</a>

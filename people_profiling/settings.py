@@ -20,6 +20,8 @@ TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN')
 
 
 
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -149,3 +151,10 @@ IG_LOGIN = 'iamcarolgitonga'
 
 SESSION_DIR = os.path.join(BASE_DIR, 'sessions')
 SESSION_FILE = os.path.join(SESSION_DIR, f"{IG_LOGIN}_session")
+
+# Where Sherlock is installed
+SHERLOCK_PATH = os.path.join(BASE_DIR, 'external', 'sherlock')
+
+# Where to store the output files
+SHERLOCK_OUTPUT = os.path.join(BASE_DIR, 'output', 'sherlock')
+
