@@ -11,4 +11,5 @@ urlpatterns = [
     path('unscrape/<str:username>/', views.delete_twitter_data, name='unscrape_twitter'),
     path('unscrape/github/<str:username>/', views.delete_github_data, name='unscrape_github'),
     path('unscrape/instagram/<str:username>/', views.delete_instagram_data, name='unscrape_instagram'),
+    path('unscrape/tiktok/<str:username>/', views.delete_tiktok_data, name='unscrape_tiktok'), 
 ]

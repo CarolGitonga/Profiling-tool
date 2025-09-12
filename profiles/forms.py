@@ -1,4 +1,3 @@
-
 from django import forms
 
 class UsernameSearchForm(forms.Form):
@@ -6,9 +5,9 @@ class UsernameSearchForm(forms.Form):
         ('Twitter', 'Twitter'),
         ('GitHub', 'GitHub'),
         ('Instagram', 'Instagram'),
+        ('TikTok', 'TikTok'),  # ✅ Added TikTok
         # You can add more platforms here:
         # ('LinkedIn', 'LinkedIn'),
-        # ('TikTok', 'TikTok'),
     ]
 
     username = forms.CharField(
