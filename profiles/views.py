@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from profiles.utils.github_scraper import scrape_github_profile, unscrape_github_profile
 from profiles.utils.instagram_scraper import scrape_instagram_profile, unscrape_instagram_profile
+from profiles.utils.tiktok_scraper import scrape_tiktok_profile, unscrape_tiktok_profile
 from profiles.utils.twitter_scraper import get_twitter_profile, unscrape_twitter_bio
 from .models import Profile, SocialMediaAccount
 from .forms import UsernameSearchForm
@@ -90,6 +91,32 @@ def search_profile(request):
                         'posts_collected': insta_data['posts'],
                     }
                 )
+            # --- TIKTOK ---
+            elif platform == 'TikTok':
+                tiktok_data = scrape_tiktok_profile(username)
+                if not tiktok_data or 'error' in tiktok_data:
+                    messages.error(request, f"Could not retrieve TikTok profile for {username}.")
+                    return redirect('search_profile')
+                
+                profile, _ = Profile.objects.get_or_create(username=username, platform='TikTok')
+                profile.full_name = tiktok_data['nickname']
+                profile.avatar_url = tiktok_data['avatar']
+                profile.verified = tiktok_data['verified']
+                profile.save()
+
+                SocialMediaAccount.objects.update_or_create(
+                    profile=profile,
+                    platform='TikTok',
+                    defaults={
+                        'bio': tiktok_data['bio'],
+                        'followers': tiktok_data['followers'],
+                        'following': tiktok_data['following'],
+                        'hearts': tiktok_data['likes'],
+                        'videos': tiktok_data['video_count'],
+                        'verified': tiktok_data['verified'],
+                        'posts_collected': 0,
+                    }
+                )
 
             return redirect('profile_dashboard', pk=profile.pk)
     else: 
@@ -118,6 +145,14 @@ def delete_instagram_data(request, username):
         messages.success(request, "Instagram data removed successfully.")
     else:
         messages.error(request, "Instagram profile not found or already removed.")
+    return redirect('search_profile')
+
+def delete_tiktok_data(request, username):
+    success = unscrape_tiktok_profile(username)
+    if success:
+        messages.success(request, "TikTok data removed successfully.")
+    else:
+        messages.error(request, "TikTok profile not found or already removed.")
     return redirect('search_profile')
 
 def profile_dashboard(request, pk):
