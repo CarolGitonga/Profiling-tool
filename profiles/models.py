@@ -5,6 +5,7 @@ class Profile(models.Model):
         ('Twitter', 'Twitter'),
         ('GitHub', 'GitHub'),
         ('Instagram', 'Instagram'),
+        ('TikTok', 'TikTok'),
         # Add more platforms as needed
     ]
     username = models.CharField(max_length=150)
@@ -19,6 +20,11 @@ class Profile(models.Model):
     location = models.CharField(max_length=255, blank=True, null=True)  # Common field
     company = models.CharField(max_length=255, blank=True, null=True)   # GitHub
     blog = models.URLField(blank=True, null=True)  # GitHub or personal site
+
+     # ✅ TikTok-specific
+    verified = models.BooleanField(default=False)
+    tiktok_created_at = models.DateTimeField(blank=True, null=True)
+    tiktok_user_id = models.CharField(max_length=255, blank=True, null=True)
 
     class Meta:
         unique_together = ('username', 'platform')  # ensure uniqueness only per platform
@@ -44,6 +50,13 @@ class SocialMediaAccount(models.Model):
     # Instagram-specific (optional)
     is_private = models.BooleanField(default=False)
     external_url = models.URLField(blank=True, null=True)
+
+     # ✅ TikTok-specific
+    hearts = models.IntegerField(default=0)
+    videos = models.IntegerField(default=0)
+    private_account = models.BooleanField(default=False)
+    tiktok_bio_link = models.URLField(blank=True, null=True)
+    tiktok_region = models.CharField(max_length=100, blank=True, null=True)
     
 
     def __str__(self):

@@ -13,18 +13,20 @@ def sherlock_search(request):
         output_file = os.path.join(settings.SHERLOCK_OUTPUT, f"{username}.txt")
 
         try:
+            os.makedirs(settings.SHERLOCK_OUTPUT, exist_ok=True)
             result = subprocess.run(
                 [
                     sys.executable,  # path to Python interpreter
-                    sherlock_script,
+                    '-m', 'sherlock_project',
                     username,
                     '--print-found',
-                    '--timeout', '10',
+                    '--timeout', '5',
                     '--output', output_file
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                cwd=settings.SHERLOCK_PATH
             )
 
             output = result.stdout + result.stderr
