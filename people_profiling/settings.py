@@ -158,3 +158,7 @@ SHERLOCK_PATH = os.path.join(BASE_DIR, 'external', 'sherlock')
 # Where to store the output files
 SHERLOCK_OUTPUT = os.path.join(BASE_DIR, 'output', 'sherlock')
 
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'   # Redis as broker
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+
