@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 import os
 from pathlib import Path
 from decouple import config
+import environ
+
 TWITTER_API_KEY = config('TWITTER_API_KEY')
 TWITTER_API_SECRET = config('TWITTER_API_SECRET')
 TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN')
@@ -161,4 +163,19 @@ SHERLOCK_OUTPUT = os.path.join(BASE_DIR, 'output', 'sherlock')
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'   # Redis as broker
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+
+# Initialise environment variables
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+#TIKTOK_SESSIONID = env("TIKTOK_SESSIONID")
+# ✅ make it available globally
+ENV = env  
+
+# TikTok cookies
+TIKTOK_COOKIES = {
+    "sessionid": env("TIKTOK_SESSIONID", default=""),
+    "s_v_web_id": env("TIKTOK_S_V_WEB_ID", default=""),
+    "tt_chain_token": env("TIKTOK_TT_CHAIN_TOKEN", default=""),
+}
+
 
