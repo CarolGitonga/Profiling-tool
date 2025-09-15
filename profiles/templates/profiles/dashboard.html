@@ -53,22 +53,21 @@
             {% if profile.avatar_url %}
                 <img src="{{ profile.avatar_url }}" alt="{{ profile.platform }} avatar"><br><br>
             {% else %}
-              <p>No profile image available</p>
+                <p>No profile image available</p>
             {% endif %}
 
-            <p><strong>Full Name:</strong> {{ profile.full_name }}</p>
+            <p><strong>Full Name:</strong> {{ profile.full_name|default:"Not available" }}</p>
 
             {% with accounts|get_account_for:profile as account %}
-                {% if account %}
-                    <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
-                    <p><strong>Followers:</strong> {{ account.followers }}</p>
-                    <p><strong>Following:</strong> {{ account.following }}</p>
-
-                    {% if profile.platform == 'GitHub' %}
+                {% if profile.platform == 'GitHub' %}
+                    {% if account %}
+                        <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
+                        <p><strong>Followers:</strong> {{ account.followers }}</p>
+                        <p><strong>Following:</strong> {{ account.following }}</p>
                         <p><strong>Public Repositories:</strong> {{ account.public_repos }}</p>
                         <p><strong>Company:</strong> {{ profile.company|default:"Not specified" }}</p>
                         <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
-                        <p><strong>Website:</strong> 
+                        <p><strong>Website:</strong>
                             {% if profile.blog %}
                                 <a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a>
                             {% else %}
@@ -80,8 +79,15 @@
                             {% csrf_token %}
                             <button type="submit" class="remove-btn">Remove GitHub Data</button>
                         </form>
+                    {% else %}
+                        <p><em>GitHub profile is being scraped. Please refresh soon.</em></p>
+                    {% endif %}
 
-                    {% elif profile.platform == 'Twitter' %}
+                {% elif profile.platform == 'Twitter' %}
+                    {% if account %}
+                        <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
+                        <p><strong>Followers:</strong> {{ account.followers }}</p>
+                        <p><strong>Following:</strong> {{ account.following }}</p>
                         <p><strong>Verified:</strong> {{ profile.verified|yesno:"Yes,No" }}</p>
                         <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
                         <p><strong>Twitter Joined:</strong> {{ profile.profile_created_at|date:"F Y" }}</p>
@@ -89,8 +95,15 @@
                             {% csrf_token %}
                             <button type="submit" class="remove-btn">Remove Twitter Data</button>
                         </form>
+                    {% else %}
+                        <p><em>Twitter profile is being scraped. Please refresh soon.</em></p>
+                    {% endif %}
 
-                    {% elif profile.platform == 'Instagram' %}
+                {% elif profile.platform == 'Instagram' %}
+                    {% if account %}
+                        <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
+                        <p><strong>Followers:</strong> {{ account.followers }}</p>
+                        <p><strong>Following:</strong> {{ account.following }}</p>
                         <p><strong>Posts:</strong> {{ account.posts_collected }}</p>
                         <p><strong>Verified:</strong> {{ account.is_verified|yesno:"Yes,No" }}</p>
                         <p><strong>External URL:</strong>
@@ -104,8 +117,15 @@
                             {% csrf_token %}
                             <button type="submit" class="remove-btn">Remove Instagram Data</button>
                         </form>
+                    {% else %}
+                        <p><em>Instagram profile is still being scraped. Please refresh this page in a few seconds.</em></p>
+                    {% endif %}
 
-                    {% elif profile.platform == 'TikTok' %}
+                {% elif profile.platform == 'TikTok' %}
+                    {% if account %}
+                        <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
+                        <p><strong>Followers:</strong> {{ account.followers }}</p>
+                        <p><strong>Following:</strong> {{ account.following }}</p>
                         <p><strong>Videos:</strong> {{ account.videos }}</p>
                         <p><strong>Total Likes (Hearts):</strong> {{ account.hearts }}</p>
                         <p><strong>Verified:</strong> {{ account.verified|yesno:"Yes,No" }}</p>
@@ -121,6 +141,8 @@
                             {% csrf_token %}
                             <button type="submit" class="remove-btn">Remove TikTok Data</button>
                         </form>
+                    {% else %}
+                        <p><em>TikTok profile is still being scraped. Please refresh this page in a few seconds.</em></p>
                     {% endif %}
                 {% endif %}
             {% endwith %}
