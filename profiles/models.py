@@ -57,6 +57,7 @@ class SocialMediaAccount(models.Model):
     private_account = models.BooleanField(default=False)
     tiktok_bio_link = models.URLField(blank=True, null=True)
     tiktok_region = models.CharField(max_length=100, blank=True, null=True)
+    verified = models.BooleanField(default=False)   # ✅ add this
     
 
     def __str__(self):
