@@ -87,12 +87,12 @@ WSGI_APPLICATION = 'people_profiling.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+#DATABASES = {
+   # 'default': {
+    #    'ENGINE': 'django.db.backends.sqlite3',
+    #    'NAME': BASE_DIR / 'db.sqlite3',
+   # }
+#}
 
 # Simple file-based caching (good for development)
 # use Memcached or Redis for production setups
@@ -170,6 +170,12 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 #TIKTOK_SESSIONID = env("TIKTOK_SESSIONID")
 # ✅ make it available globally
 ENV = env  
+
+DATABASES = {
+    "default": env.db("DATABASE_URL")
+}
+
+
 
 # TikTok cookies
 TIKTOK_COOKIES = {
