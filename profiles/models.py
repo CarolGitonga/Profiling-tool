@@ -8,10 +8,10 @@ class Profile(models.Model):
         ('TikTok', 'TikTok'),
         # Add more platforms as needed
     ]
-    username = models.CharField(max_length=150)
-    full_name = models.CharField(max_length=255, blank=True, null=True)
+    username = models.CharField(max_length=255)
+    full_name = models.CharField(max_length=500, blank=True, null=True)
     platform = models.CharField(max_length=100, choices=PLATFORM_CHOICES)
-    avatar_url = models.URLField(blank=True, null=True)
+    avatar_url = models.URLField(max_length=500, blank=True, null=True)
     date_profiled = models.DateTimeField(auto_now_add=True)
 
     # Optional fields (platform-specific)
