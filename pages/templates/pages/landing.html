@@ -1,91 +1,170 @@
-{% load static %}
+{% extends "pages/base.html" %}
+{% block title %}Welcome | People Profiling{% endblock %}
+{% block content %}
+  <style>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>People Profiling</title>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Bootstrap Icons -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    .hero-section h1 {
+      font-size: 2.8rem;
+      font-weight: 600;
+      line-height: 1.4;
+      text-align: center;
+    }
+    .highlight {
+      color: #f5a623; /* Yellow/orange highlight for 'al' */
+    }
+    .investigation-section {
+    background: #2a2f3a;
+    color: #fff;
+  }
+
+  .investigation-section h2 {
+    font-weight: 600;
+  }
+
+  .investigate-card {
+    background: #3a3f4a;
+    border-radius: 12px;
+    padding: 20px 40px;
+    min-width: 220px;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .investigate-card.active {
+    background: #1da1f2; /* Twitter blue for active */
+  }
+
+  .investigate-card .icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    opacity: 0.9;
+  }
+
+  .investigate-card .label {
+    font-size: 1.1rem;
+    font-weight: 500;
+  }
+
+  .investigate-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+  }
+  .features-section {
+    background: #f9f9f9;
+    color: #333;
+  }
+  .feature-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #f5a623; /* Orange highlight */
+    margin-bottom: 15px;
+  }
+  .features-section h5 {
+    margin-bottom: 15px;
+    line-height: 1.4;
+  }
+  .features-section p {
+    font-size: 0.95rem;
+    color: #555;
+  }
+  
+  </style>
 </head>
-<body class="bg-light">
+<body>
 
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
-    <div class="container-fluid">
-      <a class="navbar-brand fw-bold text-primary d-flex align-items-center" href="#">
-        <i class="bi bi-people-fill me-2"></i> People Profiling
-      </a>
-      <form class="d-flex ms-auto" method="GET" id="searchForm">
-        <input class="form-control me-2" type="search" name="username" placeholder="Search username..." aria-label="Search">
+  <!-- Main content -->
+  <div class="container text-center mt-5">
+    <h1>Welcome to People Profiling</h1>
+    <p class="lead">Investigate smarter. Connect insights. Reveal hidden patterns.</p>
+  </div>
 
-        <!-- Choose where to search -->
-        <select class="form-select me-2" id="searchApp">
-          <option value="{% url 'search_profile' %}">Profiles</option>
-          <option value="{% url 'sherlock_search' %}">Sherlock</option>
-        </select>
+   <!-- Hero Section -->
+  <section class="hero-section">
+    <h1>
+      Start with a single <span class="highlight">name</span><br>
+      to uncover the full story,<br>
+      and stop the crime!
+    </h1>
+  </section>
 
-        <select class="form-select me-2" name="platform">
-          <option value="Twitter">Twitter</option>
-          <option value="GitHub">GitHub</option>
-          <option value="Instagram">Instagram</option>
-          <option value="">Tiktok</option>      
-        </select>
+  <!-- Investigation Section -->
+<section class="investigation-section text-center py-5">
+  <div class="container">
+    <h2 class="mb-2">Who do you want to investigate today?</h2>
+    <p class="text-muted mb-4">PICK A STARTING POINT TO UNCOVER THE FULL STORY.</p>
 
-        <button class="btn btn-primary" type="submit">
-          <i class="bi bi-search"></i> Search
-        </button>
-      </form>
-    </div>
-  </nav>
-
-  <!-- Main Content -->
-  <main class="container my-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="fw-bold">Profiles</h2>
-      <hr class="flex-grow-1 ms-3">
-    </div>
-
-    <div class="row g-4">
-      {% for profile in profiles %}
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="card border-0 shadow-sm h-100 hover-shadow transition">
-          <div class="card-body text-center">
-            <img src="{{ profile.avatar_url }}" 
-                 class="rounded-circle mb-3" 
-                 style="width: 80px; height: 80px; object-fit: cover;" 
-                 alt="@{{ profile.username }}">
-            <h5 class="card-title">@{{ profile.username }}</h5>
-            <p class="text-muted mb-1">{{ profile.full_name }}</p>
-            <span class="badge bg-primary mb-2">{{ profile.platform }}</span>
-            <p class="small text-secondary mb-3">
-              <i class="bi bi-geo-alt"></i> {{ profile.location }}
-            </p>
-            <a href="#" class="btn btn-outline-primary btn-sm disabled">Coming Soon</a>
-          </div>
-        </div>
+    <div class="d-flex justify-content-center flex-wrap gap-3">
+      <!-- Twitter -->
+      <div class="investigate-card">
+        <div class="icon"><i class="fab fa-twitter"></i></div>
+        <div class="label">@LoneLion47</div>
       </div>
-      {% empty %}
-      <div class="col-12 text-center py-5">
-        <i class="bi bi-search display-4 text-muted"></i>
-        <h5 class="mt-3">No profiles found</h5>
-        <p class="text-muted">Try searching with a different username or platform.</p>
+
+      <!-- GitHub -->
+      <div class="investigate-card">
+        <div class="icon"><i class="fab fa-github"></i></div>
+        <div class="label">githubuser</div>
       </div>
-      {% endfor %}
+
+      <!-- Instagram -->
+      <div class="investigate-card">
+        <div class="icon"><i class="fab fa-instagram"></i></div>
+        <div class="label">@insta_profile</div>
+      </div>
+
+      <!-- Another Twitter -->
+      <div class="investigate-card">
+        <div class="icon"><i class="fab fa-tiktok"></i></div>
+        <div class="label">@altAccount</div>
+      </div>
     </div>
-  </main>
+  </div>
+</section>
 
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Features Section -->
+<section class="features-section py-5">
+  <div class="container">
+    <h2 class="text-center mb-5">Why People Profiling for Investigations?</h2>
+    <div class="row text-center">
+      
+      <!-- Feature 1 -->
+      <div class="col-md-4 mb-4">
+        <h1 class="feature-number">1</h1>
+        <h5 class="fw-bold">Begin with a single lead.<br>Reveal the bigger picture.</h5>
+        <p>
+          Every investigation starts with something small — a username, a profile, or an email.  
+          People Profiling transforms that clue into a complete picture, helping you uncover 
+          networks, behaviors, and connections that might otherwise remain hidden.
+        </p>
+      </div>
+      
+      <!-- Feature 2 -->
+      <div class="col-md-4 mb-4">
+        <h1 class="feature-number">2</h1>
+        <h5 class="fw-bold">Link data across platforms.<br>See connections instantly.</h5>
+        <p>
+          Our system brings together information from multiple platforms like Twitter, GitHub, and Instagram.  
+          By connecting digital footprints, you can quickly identify relationships, detect overlaps,  
+          and surface key insights in minutes instead of days.
+        </p>
+      </div>
+      
+      <!-- Feature 3 -->
+      <div class="col-md-4 mb-4">
+        <h1 class="feature-number">3</h1>
+        <h5 class="fw-bold">Investigate with confidence.<br>Secure and reliable.</h5>
+        <p>
+          People Profiling is built with investigators in mind.  
+          Whether working solo or with a team, you can preserve accuracy, maintain security,  
+          and ensure your findings are credible — even in high-stakes investigations.
+        </p>
+      </div>
 
-  <!-- Change form action dynamically -->
-  <script>
-    document.getElementById("searchForm").addEventListener("submit", function(e) {
-      const appSelect = document.getElementById("searchApp");
-      this.action = appSelect.value;
-    });
-  </script>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
 </body>
 </html>

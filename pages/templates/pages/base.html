@@ -1,0 +1,187 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}People Profiling - Landing {% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/solid.min.css" integrity="sha512-EHa6vH03/Ty92WahM0/tet1Qicl76zihDCkBnFhN3kFGQkC+mc86d7V+6y2ypiLbk3h0beZAGdUpzfMcb06cMg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/svg-with-js.min.css" integrity="sha512-KP5ksKgJgqZoPDFb3uoE2KZiyr7n3xt+Sp6WGuCVBracF4/ccuZ/uKzuTyGL0G2dzInIs0Oz6I4nX643bIeVDg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+     body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    main {
+      flex: 1; /* ensures footer stays at bottom */
+    }
+    .navbar-custom {
+      background-color: #1c1f23; /* Dark theme */
+    }
+    .navbar-custom .nav-link,
+    .navbar-custom .navbar-brand {
+      color: #fff;
+      font-weight: 600;
+      text-transform: uppercase; /* make everything caps */
+      letter-spacing: 1px;       /* optional spacing */
+    }
+    .navbar-custom .nav-link:hover {
+      color: #f5a623; /* Highlight color */
+    }
+
+    
+  .footer-section {
+    background: #f9f9f9;
+    color: #333;
+    font-size: 0.95rem;
+  }
+  .footer-section h6 {
+    margin-bottom: 15px;
+    font-size: 1rem;
+  }
+  .footer-section a {
+    color: #444;
+    text-decoration: none;
+  }
+  .footer-section a:hover {
+    color: #f5a623;
+  }
+  .social-icons a {
+    font-size: 1.3rem;
+    margin-left: 10px;
+    color: #333;
+  }
+  .social-icons a:hover {
+    color: #f5a623;
+  }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-custom">
+    <div class="container-fluid">
+      <!-- Left side (Logo + Menu) -->
+      <a class="navbar-brand me-4" href="#">LOGO</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+              aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <!-- Left items -->
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <a class="nav-link" href="#contact">CONTACT</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#about">ABOUT</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'search_profile' %}">INVESTIGATE</a>
+          </li>
+        </ul>
+
+        <!-- Right item (Signup) -->
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="">SIGNUP</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+ <main class="py-5">
+  <div class="container">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </div>
+</main>
+<!-- Footer -->
+<footer class="footer-section py-5">
+  <!-- Separator Line -->
+  <hr class="my-4">
+  <div class="container">
+    <div class="row">
+      <!-- Column 1 -->
+      <div class="col-md-3 mb-4">
+        <h6 class="fw-bold">Products & Features</h6>
+        <ul class="list-unstyled">
+          <li><a href="#">Profiles</a></li>
+          <li><a href="#">Sherlock Search</a></li>
+          <li><a href="#">OSINT Monitor</a></li>
+          <li><a href="#">Case Evidence</a></li>
+          <li><a href="#">Data Sources</a></li>
+        </ul>
+      </div>
+
+      <!-- Column 3 -->
+      <div class="col-md-3 mb-4">
+        <h6 class="fw-bold">Company</h6>
+        <ul class="list-unstyled">
+          <li><a href="#">About Us</a></li>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#">Press</a></li>
+          <li><a href="#">Partners</a></li>
+          <li><a href="#">Legal</a></li>
+        </ul>
+      </div>
+
+      <!-- Column 4 -->
+      <div class="col-md-3 mb-4">
+        <h6 class="fw-bold">Resources</h6>
+        <ul class="list-unstyled">
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">FAQs</a></li>
+          <li><a href="#">Community</a></li>
+          <li><a href="#">For Investigators</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="my-4">
+
+    <!-- Bottom -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
+      <p class="mb-2 mb-md-0">
+        © 2025 People Profiling Project. All rights reserved. <br>
+        ISO 27001:2022 Compliant
+      </p>
+
+      <!-- Social Icons -->
+      <div class="social-icons">
+        <a href="#"><i class="fab fa-x-twitter"></i></a>
+        <a href="#"><i class="fab fa-linkedin"></i></a>
+        <a href="#"><i class="fab fa-github"></i></a>
+        <a href="#"><i class="fab fa-youtube"></i></a>
+      </div>
+    </div>
+
+    <!-- Legal Links -->
+    <div class="text-center mt-3">
+      <a href="#">Legal Notice</a> |
+      <a href="#">License Agreement</a> |
+      <a href="#">Privacy Policy</a> |
+      <a href="#">Cookie Policy</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Font Awesome -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/js/all.min.js" integrity="sha512-6BTOlkauINO65nLhXhthZMtepgJSghyimIalb+crKRPhvhmsCdnIuGcVbR5/aQY2A+260iC1OPy1oCdB6pSSwQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+   <!-- 🔑 allow page-specific scripts (your search.html JS runs here) -->
+  {% block scripts %}{% endblock %}
+</body>
+</html>

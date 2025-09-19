@@ -1,55 +1,77 @@
-{% extends 'base.html' %}
+{% extends "pages/base.html" %}
 {% load static %}
 {% block title %}Search Social Profile{% endblock %}
 
 {% block content %}
 <style>
-    /* Internal CSS for improvements */
+    /* =========================
+       Internal CSS for styling
+       ========================= */
     .page-header {
         font-weight: 700;
         display: flex;
         align-items: center;
         justify-content: center;
         margin-bottom: 2rem;
+        font-size: 2rem;
     }
     .page-header i {
         color: #0d6efd;
         margin-right: 10px;
     }
+
+    /* Username input */
+    .username-input {
+        max-width: 500px;
+        margin: 0 auto 2rem auto;
+        text-align: center;
+    }
+
+    /* Platform cards */
     .platform-card {
         cursor: pointer;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border-radius: 12px;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        border: 1px solid #e9ecef;
     }
     .platform-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        transform: translateY(-6px);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
     }
     .platform-card.active {
         border: 2px solid #0d6efd;
-        box-shadow: 0 6px 20px rgba(13, 110, 253, 0.25);
+        box-shadow: 0 8px 22px rgba(13, 110, 253, 0.25);
     }
     .platform-card img {
-    height: 100px;        /* box height */
-    width: 100%;          /* full width of card */
-    object-fit: contain;  /* keep aspect ratio, no stretching */
-    padding: 20px;        /* space around logo */
-}
+        height: 100px;
+        width: auto;
+        object-fit: contain;
+        margin: 20px auto 0 auto;
+    }
 
+    /* Button */
+    .search-btn {
+        border-radius: 30px;
+        font-size: 1.1rem;
+        padding: 10px 40px;
+    }
 </style>
 
-<div class="container mt-5">
+<div class="container mt-5 text-center">
+
     <!-- Page Title -->
-    <h2 class="page-header text-center">
+    <h2 class="page-header">
         <i class="bi bi-search"></i> Profile Investigator
     </h2>
 
-    <form method="POST" id="platformForm" class="text-center">
+    <!-- Form -->
+    <form method="POST" action="{% url 'search_profile' %}" id="platformForm">
         {% csrf_token %}
 
         <!-- Username Input -->
-        <div class="mb-4">
-            <input type="text" name="username" placeholder="Enter username" 
-                   class="form-control form-control-lg text-center" required>
+        <div class="username-input">
+            <input type="text" name="username" placeholder="🔎 Enter username" 
+                   class="form-control form-control-lg text-center shadow-sm" required>
         </div>
 
         <!-- Hidden Input for Platform -->
@@ -59,40 +81,40 @@
         <div class="row g-4 justify-content-center">
             <!-- Twitter -->
             <div class="col-md-3">
-                <div class="card platform-card h-100 text-center shadow-sm" data-platform="Twitter">
-                    <img src="{% static 'images/twitter.png' %}" class="card-img-top p-4" alt="Twitter">
+                <div class="card platform-card h-100 shadow-sm" data-platform="Twitter">
+                    <img src="{% static 'images/twitter.png' %}" alt="Twitter">
                     <div class="card-body">
-                        <h5 class="card-title">Twitter</h5>
+                        <h5 class="card-title fw-semibold">Twitter</h5>
                     </div>
                 </div>
             </div>
 
             <!-- GitHub -->
             <div class="col-md-3">
-                <div class="card platform-card h-100 text-center shadow-sm" data-platform="GitHub">
-                    <img src="{% static 'images/github.jpeg' %}" class="card-img-top p-4" style="height:100px;" alt="GitHub">
+                <div class="card platform-card h-100 shadow-sm" data-platform="GitHub">
+                    <img src="{% static 'images/github.jpeg' %}" alt="GitHub">
                     <div class="card-body">
-                        <h5 class="card-title">GitHub</h5>
+                        <h5 class="card-title fw-semibold">GitHub</h5>
                     </div>
                 </div>
             </div>
 
             <!-- Instagram -->
             <div class="col-md-3">
-                <div class="card platform-card h-100 text-center shadow-sm" data-platform="Instagram">
-                    <img src="{% static 'images/instagram.jpeg' %}" class="card-img-top p-4" style="height:100px;" alt="Instagram">
+                <div class="card platform-card h-100 shadow-sm" data-platform="Instagram">
+                    <img src="{% static 'images/instagram.jpeg' %}" alt="Instagram">
                     <div class="card-body">
-                        <h5 class="card-title">Instagram</h5>
+                        <h5 class="card-title fw-semibold">Instagram</h5>
                     </div>
                 </div>
             </div>
 
             <!-- TikTok -->
             <div class="col-md-3">
-                <div class="card platform-card h-100 text-center shadow-sm" data-platform="TikTok">
-                    <img src="{% static 'images/tiktok.png' %}" class="card-img-top p-4" style="height:100px;" alt="TikTok">
+                <div class="card platform-card h-100 shadow-sm" data-platform="TikTok">
+                    <img src="{% static 'images/tiktok.png' %}" alt="TikTok">
                     <div class="card-body">
-                        <h5 class="card-title">TikTok</h5>
+                        <h5 class="card-title fw-semibold">TikTok</h5>
                     </div>
                 </div>
             </div>
@@ -100,7 +122,7 @@
 
         <!-- Submit Button -->
         <div class="text-center mt-5">
-            <button type="submit" class="btn btn-primary btn-lg px-5">
+            <button type="submit" class="btn btn-primary btn-lg search-btn shadow">
                 <i class="bi bi-search"></i> Search Profile
             </button>
         </div>
@@ -116,16 +138,24 @@
 
         cards.forEach(card => {
             card.addEventListener("click", function () {
-                // Set platform value
+                // Set selected platform
                 platformInput.value = this.dataset.platform;
 
-                // Reset all cards
+                // Reset active state
                 cards.forEach(c => c.classList.remove("active"));
 
-                // Highlight selected
+                // Highlight selected card
                 this.classList.add("active");
             });
         });
+        // Prevent submitting if no platform is selected
+        form.addEventListener("submit", function(e) {
+            if (!platformInput.value) {
+                e.preventDefault();
+                alert("Please select a platform before searching.");
+            }
+        });
+
     });
 </script>
 {% endblock %}

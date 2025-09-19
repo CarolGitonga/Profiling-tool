@@ -18,6 +18,8 @@ def search_profile(request):
         if form.is_valid():
             username = form.cleaned_data["username"].strip()
             platform = form.cleaned_data["platform"]
+            
+
 
             # --- TWITTER (sync) ---
             if platform == "Twitter":
