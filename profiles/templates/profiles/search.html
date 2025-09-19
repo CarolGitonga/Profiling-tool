@@ -1,35 +1,73 @@
-
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Search Social Profile{% endblock %}
 
 {% block content %}
+<style>
+    /* Internal CSS for improvements */
+    .page-header {
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
+    .page-header i {
+        color: #0d6efd;
+        margin-right: 10px;
+    }
+    .platform-card {
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .platform-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    }
+    .platform-card.active {
+        border: 2px solid #0d6efd;
+        box-shadow: 0 6px 20px rgba(13, 110, 253, 0.25);
+    }
+    .platform-card img {
+    height: 100px;        /* box height */
+    width: 100%;          /* full width of card */
+    object-fit: contain;  /* keep aspect ratio, no stretching */
+    padding: 20px;        /* space around logo */
+}
+
+</style>
+
 <div class="container mt-5">
-    <h2 class="mb-4 text-center">Select a Platform</h2>
-    <form method="POST" id="platformForm">
+    <!-- Page Title -->
+    <h2 class="page-header text-center">
+        <i class="bi bi-search"></i> Profile Investigator
+    </h2>
+
+    <form method="POST" id="platformForm" class="text-center">
         {% csrf_token %}
 
         <!-- Username Input -->
         <div class="mb-4">
-            <input type="text" name="username" placeholder="Enter username" class="form-control form-control-lg" required>
+            <input type="text" name="username" placeholder="Enter username" 
+                   class="form-control form-control-lg text-center" required>
         </div>
 
         <!-- Hidden Input for Platform -->
         <input type="hidden" name="platform" id="platformInput">
 
         <!-- Cards Grid -->
-        <div class="row g-3">
-            <!-- Twitter Card -->
+        <div class="row g-4 justify-content-center">
+            <!-- Twitter -->
             <div class="col-md-3">
                 <div class="card platform-card h-100 text-center shadow-sm" data-platform="Twitter">
-                    <img src="{% static 'images/twitter.png' %}" class="card-img-top p-4" style="height:100px;" alt="Twitter">
+                    <img src="{% static 'images/twitter.png' %}" class="card-img-top p-4" alt="Twitter">
                     <div class="card-body">
                         <h5 class="card-title">Twitter</h5>
                     </div>
                 </div>
             </div>
 
-            <!-- GitHub Card -->
+            <!-- GitHub -->
             <div class="col-md-3">
                 <div class="card platform-card h-100 text-center shadow-sm" data-platform="GitHub">
                     <img src="{% static 'images/github.jpeg' %}" class="card-img-top p-4" style="height:100px;" alt="GitHub">
@@ -39,7 +77,7 @@
                 </div>
             </div>
 
-             <!-- Instagram Card -->
+            <!-- Instagram -->
             <div class="col-md-3">
                 <div class="card platform-card h-100 text-center shadow-sm" data-platform="Instagram">
                     <img src="{% static 'images/instagram.jpeg' %}" class="card-img-top p-4" style="height:100px;" alt="Instagram">
@@ -49,7 +87,7 @@
                 </div>
             </div>
 
-            <!-- TikTok Card ✅ -->
+            <!-- TikTok -->
             <div class="col-md-3">
                 <div class="card platform-card h-100 text-center shadow-sm" data-platform="TikTok">
                     <img src="{% static 'images/tiktok.png' %}" class="card-img-top p-4" style="height:100px;" alt="TikTok">
@@ -60,10 +98,11 @@
             </div>
         </div>
 
-
         <!-- Submit Button -->
         <div class="text-center mt-5">
-            <button type="submit" class="btn btn-primary btn-lg">Search Profile</button>
+            <button type="submit" class="btn btn-primary btn-lg px-5">
+                <i class="bi bi-search"></i> Search Profile
+            </button>
         </div>
     </form>
 </div>
@@ -77,14 +116,14 @@
 
         cards.forEach(card => {
             card.addEventListener("click", function () {
-                // Mark selected platform
+                // Set platform value
                 platformInput.value = this.dataset.platform;
 
                 // Reset all cards
-                cards.forEach(c => c.classList.remove("border-primary", "shadow"));
-                
+                cards.forEach(c => c.classList.remove("active"));
+
                 // Highlight selected
-                this.classList.add("border-primary", "shadow");
+                this.classList.add("active");
             });
         });
     });
