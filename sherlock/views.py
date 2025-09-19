@@ -46,8 +46,23 @@ def sherlock_search(request):
                 cwd=settings.SHERLOCK_PATH
             )
 
-            output = result.stdout + result.stderr
-            return render(request, 'sherlock/result.html', {'output': output})
+            raw_output = result.stdout + result.stderr
+            # 🔑 Parse only lines starting with [+]
+            sherlock_results = []
+            for line in raw_output.splitlines():
+                if line.startswith("[+]"):
+                    parts = line.replace("[+] ", "").split(": ", 1)
+                    if len(parts) == 2:
+                        platform, url = parts
+                        sherlock_results.append({
+                            "platform": platform.strip(),
+                            "url": url.strip()
+                        })
+
+            return render(request, 'sherlock/result.html', {
+                "username": username,
+                "sherlock_results": sherlock_results
+            })
 
         except Exception as e:
             return HttpResponse(f"Error running Sherlock: {e}")
