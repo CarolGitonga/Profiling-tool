@@ -9,9 +9,9 @@ class Profile(models.Model):
         # Add more platforms as needed
     ]
     username = models.CharField(max_length=255)
-    full_name = models.CharField(max_length=500, blank=True, null=True)
+    full_name = models.CharField(max_length=1000, blank=True, null=True)
     platform = models.CharField(max_length=100, choices=PLATFORM_CHOICES)
-    avatar_url = models.URLField(max_length=500, blank=True, null=True)
+    avatar_url = models.URLField(max_length=2000, blank=True, null=True)
     date_profiled = models.DateTimeField(auto_now_add=True)
 
     # Optional fields (platform-specific)

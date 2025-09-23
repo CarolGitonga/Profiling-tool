@@ -13,6 +13,7 @@ from .forms import UsernameSearchForm
 from django.contrib import messages
 from dateutil.parser import parse as parse_date
 from sherlock.utils import run_sherlock
+from django.db.models import Count
 
 
 
@@ -173,18 +174,16 @@ def profile_dashboard(request, pk):
         )
         if text_data.strip():
             wordcloud_image = generate_wordcloud(text_data)
-     # --- NEW: Platform distribution for pie chart ---
-    platform_counts = (
-        Profile.objects.values_list("platform", flat=True)
+    # --- NEW: platform distribution (count how many profiles per platform) ---
+    distribution = (
+        Profile.objects.values("platform")
+        .annotate(count=Count("platform"))
         .order_by("platform")
     )
-    distribution = {}
-    for p in platform_counts:
-        distribution[p] = distribution.get(p, 0) + 1
     
      # Convert for Chart.js (labels + data)
-    chart_labels = list(distribution.keys())
-    chart_data = list(distribution.values())
+    chart_labels = [item["platform"] for item in distribution]
+    chart_data = [item["count"] for item in distribution]
 
     context = {
         "profiles": profiles,

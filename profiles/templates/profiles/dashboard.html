@@ -72,20 +72,15 @@
 </div>
 {% endif %}
 
-<div class="col-md-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-success text-white fw-bold text-center">
-                    <i class="bi bi-pie-chart"></i> Platform Distribution
-                </div>
-                <div class="card-body">
-                    <canvas id="platformChart" height="300"></canvas>
-                </div>
-                <div class="card-footer text-muted text-center small">
-                    Across all stored profiles
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="card shadow-sm mb-5">
+  <div class="card-header bg-success text-white fw-bold text-center">
+    <i class="bi bi-pie-chart"></i> Platform Distribution
+  </div>
+  <div class="card-body">
+    <canvas id="platformChart" width="400" height="400"></canvas>
+  </div>
+</div>
+ 
 
 
     <!-- Platform Cards -->
@@ -254,5 +249,4 @@
     }
   });
 </script>
-
 {% endblock %}
