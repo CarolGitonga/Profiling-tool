@@ -174,16 +174,16 @@ def profile_dashboard(request, pk):
         )
         if text_data.strip():
             wordcloud_image = generate_wordcloud(text_data)
-    # --- NEW: platform distribution (count how many profiles per platform) ---
-    distribution = (
+   # --- Platform distribution across ALL profiles ---
+    platform_counts = (
         Profile.objects.values("platform")
-        .annotate(count=Count("platform"))
+        .annotate(count=Count("id"))
         .order_by("platform")
     )
+    chart_labels = [p["platform"] for p in platform_counts]
+    chart_data = [p["count"] for p in platform_counts]
+
     
-     # Convert for Chart.js (labels + data)
-    chart_labels = [item["platform"] for item in distribution]
-    chart_data = [item["count"] for item in distribution]
 
     context = {
         "profiles": profiles,
