@@ -15,6 +15,7 @@ from dateutil.parser import parse as parse_date
 from sherlock.utils import run_sherlock
 from django.db.models import Count
 from django.db.models import Avg
+from django.db.models.functions import TruncMonth
 
 
 
@@ -193,6 +194,15 @@ def profile_dashboard(request, pk):
             .aggregate(avg=Avg("followers"))["avg"] or 0
         )
         bar_data.append(round(avg_followers, 2))  # 2 decimal precision
+    # --- Line Chart Data (profiles added per month) ---
+    growth = (
+        Profile.objects.annotate(month=TruncMonth("date_profiled"))
+        .values("month")
+        .annotate(count=Count("id"))
+        .order_by("month")
+    )
+    growth_labels = [g["month"].strftime("%b %Y") for g in growth]
+    growth_data = [g["count"] for g in growth]
 
     
 
@@ -205,6 +215,8 @@ def profile_dashboard(request, pk):
         "chart_data": json.dumps(chart_data),
         "bar_labels": json.dumps(bar_labels),
         "bar_data": json.dumps(bar_data),
+        "growth_labels": json.dumps(growth_labels),
+        "growth_data": json.dumps(growth_data),
 
     }
 
