@@ -1,5 +1,6 @@
 
 # user-facing logic (form handling, enqueue Celery tasks, render templates)
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from profiles.tasks import scrape_instagram_task, scrape_tiktok_task
 from profiles.utils.github_scraper import scrape_github_profile, unscrape_github_profile
@@ -156,10 +157,8 @@ def profile_dashboard(request, pk):
     profile = get_object_or_404(Profile, pk=pk)
     profiles = [profile]  # wrap single profile in a list
     accounts = SocialMediaAccount.objects.filter(profile=profile)
-
     sherlock_results = []
     wordcloud_image = None
-
      # Sherlock profile → use sherlock_results text
     if profile.platform == "Sherlock":
         sherlock_results = request.session.get("sherlock_results", [])
@@ -174,14 +173,27 @@ def profile_dashboard(request, pk):
         )
         if text_data.strip():
             wordcloud_image = generate_wordcloud(text_data)
+     # --- NEW: Platform distribution for pie chart ---
+    platform_counts = (
+        Profile.objects.values_list("platform", flat=True)
+        .order_by("platform")
+    )
+    distribution = {}
+    for p in platform_counts:
+        distribution[p] = distribution.get(p, 0) + 1
+    
+     # Convert for Chart.js (labels + data)
+    chart_labels = list(distribution.keys())
+    chart_data = list(distribution.values())
 
-
-    return render(
-        request,
-        "profiles/dashboard.html",
-        {"profiles": profiles, 
+    context = {
+        "profiles": profiles,
         "accounts": accounts,
         "sherlock_results": sherlock_results,
         "wordcloud_image": wordcloud_image,
-        },
-    )
+        "chart_labels": json.dumps(chart_labels),  # pass as JSON-safe
+        "chart_data": json.dumps(chart_data),
+
+    }
+
+    return render( request, "profiles/dashboard.html", context)
