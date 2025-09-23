@@ -6,11 +6,13 @@ from profiles.utils.github_scraper import scrape_github_profile, unscrape_github
 from profiles.utils.instagram_scraper import unscrape_instagram_profile
 from profiles.utils.tiktok_scraper import unscrape_tiktok_profile
 from profiles.utils.twitter_scraper import get_twitter_profile, unscrape_twitter_bio
+from profiles.utils.wordcloud import generate_wordcloud
 from .models import Profile, SocialMediaAccount
 from .forms import UsernameSearchForm
 from django.contrib import messages
 from dateutil.parser import parse as parse_date
 from sherlock.utils import run_sherlock
+
 
 
 
@@ -156,13 +158,30 @@ def profile_dashboard(request, pk):
     accounts = SocialMediaAccount.objects.filter(profile=profile)
 
     sherlock_results = []
+    wordcloud_image = None
+
+     # Sherlock profile → use sherlock_results text
     if profile.platform == "Sherlock":
         sherlock_results = request.session.get("sherlock_results", [])
+        text_data = " ".join([res["platform"] for res in sherlock_results])
+        if text_data:
+            wordcloud_image = generate_wordcloud(text_data)
+    # Other platforms → build text from bios + names
+    else:
+        text_data = " ".join(
+            [acc.bio or "" for acc in accounts] +
+            [profile.full_name or "", profile.username]
+        )
+        if text_data.strip():
+            wordcloud_image = generate_wordcloud(text_data)
+
 
     return render(
         request,
         "profiles/dashboard.html",
         {"profiles": profiles, 
         "accounts": accounts,
-        "sherlock_results": sherlock_results,},
+        "sherlock_results": sherlock_results,
+        "wordcloud_image": wordcloud_image,
+        },
     )

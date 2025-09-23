@@ -53,6 +53,26 @@
         <h2 class="fw-bold">Dashboard for {{ profiles.0.username }}</h2>
     </div>
 
+    <!-- Optional Word Cloud -->
+    {% if wordcloud_image %}
+<div class="card shadow-sm mb-5">
+    <div class="card-header bg-primary text-white fw-bold text-center">
+        <i class="bi bi-cloud"></i> Word Cloud
+    </div>
+    <div class="card-body d-flex justify-content-center align-items-center" 
+         style="min-height: 200px; background: #f9fafc;">
+        <img src="data:image/png;base64,{{ wordcloud_image }}" 
+             alt="Word Cloud" 
+             class="img-fluid rounded shadow-sm border p-2"
+             style="max-height: 500px; object-fit: contain;">
+    </div>
+    <div class="card-footer text-muted text-center small">
+        Generated from Sherlock results
+    </div>
+</div>
+{% endif %}
+
+
     <!-- Platform Cards -->
     <div class="row justify-content-center">
     {% for profile in profiles %}
