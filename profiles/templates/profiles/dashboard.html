@@ -81,6 +81,16 @@
     <canvas id="platformChart" width="400" height="400"></canvas>
   </div>
 </div>
+
+<!-- Followers Comparison (Bar Chart) -->
+<div class="card shadow-sm mb-5">
+  <div class="card-header bg-info text-white fw-bold text-center">
+    <i class="bi bi-bar-chart"></i> Followers per Platform
+  </div>
+  <div class="card-body">
+    <canvas id="followersBarChart" width="400" height="200"></canvas>
+  </div>
+</div>
  
 
 
@@ -245,6 +255,29 @@
       responsive: true,
       plugins: {
         legend: { position: "bottom" }
+      }
+    }
+  });
+
+  // Followers Bar Chart
+  const barCtx = document.getElementById("followersBarChart").getContext("2d");
+  new Chart(barCtx, {
+    type: "bar",
+    data: {
+      labels: {{ bar_labels|safe }},
+      datasets: [{
+        label: "Average Followers",
+        data: {{ bar_data|safe }},
+        backgroundColor: ["#1DA1F2", "#E1306C", "#69C9D0", "#333"], // Twitter, Insta, TikTok, GitHub
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision:0 }
+        }
       }
     }
   });

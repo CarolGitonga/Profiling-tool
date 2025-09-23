@@ -14,6 +14,7 @@ from django.contrib import messages
 from dateutil.parser import parse as parse_date
 from sherlock.utils import run_sherlock
 from django.db.models import Count
+from django.db.models import Avg
 
 
 
@@ -183,6 +184,16 @@ def profile_dashboard(request, pk):
     chart_labels = [p["platform"] for p in platform_counts]
     chart_data = [p["count"] for p in platform_counts]
 
+     # --- Bar Chart Data (followers per platform) ---
+    bar_labels = ["Twitter", "Instagram", "TikTok", "GitHub"]
+    bar_data = []
+    for platform in bar_labels:
+        avg_followers = (
+            SocialMediaAccount.objects.filter(platform=platform)
+            .aggregate(avg=Avg("followers"))["avg"] or 0
+        )
+        bar_data.append(round(avg_followers, 2))  # 2 decimal precision
+
     
 
     context = {
@@ -192,6 +203,8 @@ def profile_dashboard(request, pk):
         "wordcloud_image": wordcloud_image,
         "chart_labels": json.dumps(chart_labels),  # pass as JSON-safe
         "chart_data": json.dumps(chart_data),
+        "bar_labels": json.dumps(bar_labels),
+        "bar_data": json.dumps(bar_data),
 
     }
 
