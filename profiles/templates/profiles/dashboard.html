@@ -9,10 +9,11 @@
         background-color: #f8f9fa;
     }
     .profile-header {
-        background: #fff;
+        background: linear-gradient(135deg, #0d6efd, #6f42c1);
+        color: white;
         padding: 2rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         margin-bottom: 2rem;
         text-align: center;
     }
@@ -22,29 +23,41 @@
         border-radius: 50%;
         object-fit: cover;
         margin-bottom: 1rem;
+        border: 4px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
     .card {
         border: none;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 1.5rem;
-        text-align: center;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        margin-bottom: 2rem;
+        transition: transform 0.2s ease;
+    }
+    .card:hover {
+        transform: translateY(-4px);
     }
     .badge-stat {
         font-size: 0.9rem;
-        padding: 0.5rem 0.8rem;
-        margin: 0.2rem;
+        padding: 0.6rem 0.9rem;
+        margin: 0.3rem;
+        border-radius: 20px;
     }
     .remove-btn {
         margin-top: 1rem;
     }
+    .section-title {
+        font-weight: 600;
+        font-size: 1.3rem;
+        margin-bottom: 1rem;
+        color: #495057;
+    }
 </style>
 
-<div class="container py-4 text-center">
+<div class="container py-4">
 
 {% if profiles %}
     <!-- Profile Header -->
-    <div class="profile-header mx-auto" style="max-width: 600px;">
+    <div class="profile-header mx-auto" style="max-width: 650px;">
         {% if profiles.0.avatar_url %}
             <img src="{{ profiles.0.avatar_url }}" alt="User Avatar">
         {% else %}
@@ -53,64 +66,17 @@
         <h2 class="fw-bold">Dashboard for {{ profiles.0.username }}</h2>
     </div>
 
-    <!-- Optional Word Cloud -->
-    {% if wordcloud_image %}
-<div class="card shadow-sm mb-5">
-    <div class="card-header bg-primary text-white fw-bold text-center">
-        <i class="bi bi-cloud"></i> Word Cloud
-    </div>
-    <div class="card-body d-flex justify-content-center align-items-center" 
-         style="min-height: 200px; background: #f9fafc;">
-        <img src="data:image/png;base64,{{ wordcloud_image }}" 
-             alt="Word Cloud" 
-             class="img-fluid rounded shadow-sm border p-2"
-             style="max-height: 500px; object-fit: contain;">
-    </div>
-    <div class="card-footer text-muted text-center small">
-        Generated from Sherlock results
-    </div>
-</div>
-{% endif %}
-
-<!-- Platform Distribution Pie Chart -->
-<div class="card shadow-sm mb-5">
-  <div class="card-header bg-success text-white fw-bold text-center">
-    <i class="bi bi-pie-chart"></i> Platform Distribution
-  </div>
-  <div class="card-body">
-    <canvas id="platformChart" width="400" height="400"></canvas>
-  </div>
-</div>
-
-<!-- Followers Comparison (Bar Chart) -->
-<div class="card shadow-sm mb-5">
-  <div class="card-header bg-info text-white fw-bold text-center">
-    <i class="bi bi-bar-chart"></i> Followers per Platform
-  </div>
-  <div class="card-body">
-    <canvas id="followersBarChart" width="400" height="200"></canvas>
-  </div>
-</div>
-
-<!-- Line Chart: Growth Over Time -->
-<div class="card shadow-sm mb-5">
-  <div class="card-header bg-success text-white fw-bold text-center">
-    <i class="bi bi-graph-up"></i> Profiles Growth Over Time
-  </div>
-  <div class="card-body">
-    <canvas id="growthLineChart" width="400" height="200"></canvas>
-  </div>
-</div>
  
 
 
     <!-- Platform Cards -->
-    <div class="row justify-content-center">
-    {% for profile in profiles %}
+    <div class="row justify-content-center mt-4">
+        <h3 class="section-title text-center">Profile Details</h3>
+        {% for profile in profiles %}
         <div class="col-md-6 col-lg-5">
             <div class="card p-4">
-                <h5><i class="bi bi-person-badge text-primary"></i> {{ profile.platform }} Profile</h5>
-
+                <h5 class="fw-bold text-primary"><i class="bi bi-person-badge"></i> {{ profile.platform }} Profile</h5>
+                <hr>
                 <p><strong>Full Name:</strong> {{ profile.full_name|default:"Not available" }}</p>
 
                 {% with accounts|get_account_for:profile as account %}
@@ -132,14 +98,6 @@
                             {% endif %}
                         </p>
                         <p><strong>GitHub Joined:</strong> {{ profile.github_created_at|date:"F Y" }}</p>
-
-                        <form action="{% url 'unscrape_github' profile.username %}" method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger remove-btn">
-                                <i class="bi bi-trash"></i> Remove GitHub Data
-                            </button>
-                        </form>
-
                     {% elif profile.platform == 'Twitter' and account %}
                         <!-- Twitter details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
@@ -150,14 +108,6 @@
                         <p class="mt-3"><strong>Verified:</strong> {{ profile.verified|yesno:"Yes,No" }}</p>
                         <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
                         <p><strong>Twitter Joined:</strong> {{ profile.profile_created_at|date:"F Y" }}</p>
-
-                        <form action="{% url 'unscrape_twitter' profile.username %}" method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger remove-btn">
-                                <i class="bi bi-trash"></i> Remove Twitter Data
-                            </button>
-                        </form>
-
                     {% elif profile.platform == 'Instagram' and account %}
                         <!-- Instagram details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
@@ -167,21 +117,6 @@
                             <span class="badge bg-success badge-stat">Posts: {{ account.posts_collected }}</span>
                         </div>
                         <p class="mt-3"><strong>Verified:</strong> {{ account.is_verified|yesno:"Yes,No" }}</p>
-                        <p><strong>External URL:</strong> 
-                            {% if profile.blog %}
-                                <a href="{{ profile.blog }}" target="_blank">{{ profile.blog }}</a>
-                            {% else %}
-                                Not provided
-                            {% endif %}
-                        </p>
-
-                        <form action="{% url 'unscrape_instagram' profile.username %}" method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger remove-btn">
-                                <i class="bi bi-trash"></i> Remove Instagram Data
-                            </button>
-                        </form>
-
                     {% elif profile.platform == 'TikTok' and account %}
                         <!-- TikTok details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
@@ -191,56 +126,93 @@
                             <span class="badge bg-success badge-stat">Videos: {{ account.videos }}</span>
                             <span class="badge bg-warning badge-stat">Likes: {{ account.hearts }}</span>
                         </div>
-                        <p class="mt-3"><strong>Verified:</strong> {{ account.verified|yesno:"Yes,No" }}</p>
-                        <p><strong>Region:</strong> {{ account.tiktok_region|default:"Not specified" }}</p>
-                        <p><strong>Bio Link:</strong> 
-                            {% if account.tiktok_bio_link %}
-                                <a href="{{ account.tiktok_bio_link }}" target="_blank">{{ account.tiktok_bio_link }}</a>
-                            {% else %}
-                                Not provided
-                            {% endif %}
-                        </p>
-
-                        <form action="{% url 'unscrape_tiktok' profile.username %}" method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger remove-btn">
-                                <i class="bi bi-trash"></i> Remove TikTok Data
-                            </button>
-                        </form>
-
                     {% elif profile.platform == 'Sherlock' %}
                         <!-- Sherlock results -->
                         <h5 class="mt-3 text-primary"><i class="bi bi-search"></i> Sherlock Results</h5>
                         {% if request.session.sherlock_results %}
-                            <ul class="list-group text-start mt-3">
+                            <div class="d-flex flex-wrap gap-2 mt-3 justify-content-center">
                                 {% for result in request.session.sherlock_results %}
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>{{ result.platform }}</span>
-                                        <a href="{{ result.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                            Visit
-                                        </a>
-                                    </li>
+                                    <a href="{{ result.url }}" target="_blank" class="badge bg-dark text-decoration-none p-2">
+                                        {{ result.platform }}
+                                    </a>
                                 {% endfor %}
-                            </ul>
+                            </div>
                         {% else %}
                             <p class="text-muted mt-3"><em>No Sherlock results available yet.</em></p>
                         {% endif %}
                     {% endif %}
                 {% endwith %}
 
-                <p class="text-muted mt-3">
+                <p class="text-muted mt-3 small">
                     <i class="bi bi-clock-history"></i> Profiled {{ profile.date_profiled|timesince }} ago
                 </p>
             </div>
         </div>
-    {% endfor %}
+        {% endfor %}
     </div>
+
+      <!-- Analytics Section -->
+<div class="row g-4">
+    <!-- Word Cloud -->
+    {% if wordcloud_image %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-primary text-white fw-bold text-center py-2">
+                <i class="bi bi-cloud"></i> Word Cloud
+            </div>
+            <div class="card-body d-flex justify-content-center align-items-center" 
+                 style="min-height: 180px; background: #f9fafc;">
+                <img src="data:image/png;base64,{{ wordcloud_image }}" 
+                     alt="Word Cloud" 
+                     class="img-fluid rounded border p-1 shadow-sm"
+                     style="max-height: 180px; object-fit: contain;">
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pie Chart -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-success text-white fw-bold text-center py-2">
+                <i class="bi bi-pie-chart"></i> Platforms
+            </div>
+            <div class="card-body p-2">
+                <canvas id="platformChart" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bar Chart -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-info text-white fw-bold text-center py-2">
+                <i class="bi bi-bar-chart"></i> Followers
+            </div>
+            <div class="card-body p-2">
+                <canvas id="followersBarChart" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Line Chart -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-warning text-dark fw-bold text-center py-2">
+                <i class="bi bi-graph-up"></i> Growth
+            </div>
+            <div class="card-body p-2">
+                <canvas id="growthLineChart" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% else %}
     <div class="alert alert-warning text-center">No profiles found for this user.</div>
 {% endif %}
 
-<a href="{% url 'search_profile' %}" class="btn btn-outline-secondary mt-3">
+<a href="{% url 'search_profile' %}" class="btn btn-outline-secondary mt-4">
     <i class="bi bi-arrow-left"></i> Back to Search
 </a>
 
@@ -249,6 +221,7 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+  // Pie Chart
   const ctx = document.getElementById("platformChart").getContext("2d");
   new Chart(ctx, {
     type: "pie",
@@ -261,38 +234,25 @@
         ],
       }]
     },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: "bottom" }
-      }
-    }
+    options: { responsive: true, plugins: { legend: { position: "bottom" } } }
   });
 
-  // Followers Bar Chart
+  // Bar Chart
   const barCtx = document.getElementById("followersBarChart").getContext("2d");
   new Chart(barCtx, {
     type: "bar",
     data: {
       labels: {{ bar_labels|safe }},
       datasets: [{
-        label: "Average Followers",
+        label: "Followers",
         data: {{ bar_data|safe }},
-        backgroundColor: ["#1DA1F2", "#E1306C", "#69C9D0", "#333"], // Twitter, Insta, TikTok, GitHub
+        backgroundColor: ["#1DA1F2", "#E1306C", "#69C9D0", "#333"],
       }]
     },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision:0 }
-        }
-      }
-    }
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
   });
 
-   // Line Chart
+  // Line Chart
   const growthCtx = document.getElementById("growthLineChart").getContext("2d");
   new Chart(growthCtx, {
     type: "line",
@@ -307,18 +267,7 @@
         pointBackgroundColor: "#0d6efd"
       }]
     },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: "top" }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
-    }
+    options: { responsive: true, plugins: { legend: { position: "top" } } }
   });
 </script>
 {% endblock %}
