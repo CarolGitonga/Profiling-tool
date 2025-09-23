@@ -118,7 +118,18 @@
                     </div>
                 </div>
             </div>
-        </div>
+
+                    <!-- Sherlock -->
+    <div class="col-md-3">
+  <div class="card platform-card h-100 shadow-sm" data-platform="Sherlock">
+    <img src="{% static 'images/sherlock.png' %}" alt="Sherlock">
+    <div class="card-body">
+      <h5 class="card-title fw-semibold">Other Platforms</h5>
+    </div>
+  </div>
+</div>
+ </div>
+
 
         <!-- Submit Button -->
         <div class="text-center mt-5">
@@ -135,6 +146,8 @@
     document.addEventListener("DOMContentLoaded", function () {
         const cards = document.querySelectorAll(".platform-card");
         const platformInput = document.getElementById("platformInput");
+         const form = document.getElementById("platformForm"); // ✅ added
+        
 
         cards.forEach(card => {
             card.addEventListener("click", function () {

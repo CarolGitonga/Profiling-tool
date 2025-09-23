@@ -6,6 +6,7 @@ class UsernameSearchForm(forms.Form):
         ('GitHub', 'GitHub'),
         ('Instagram', 'Instagram'),
         ('TikTok', 'TikTok'),  # ✅ Added TikTok
+        ('Sherlock','Sherlock')
         # You can add more platforms here:
         # ('LinkedIn', 'LinkedIn'),
     ]

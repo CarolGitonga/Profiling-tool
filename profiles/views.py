@@ -10,6 +10,8 @@ from .models import Profile, SocialMediaAccount
 from .forms import UsernameSearchForm
 from django.contrib import messages
 from dateutil.parser import parse as parse_date
+from sherlock.utils import run_sherlock
+
 
 
 def search_profile(request):
@@ -86,6 +88,24 @@ def search_profile(request):
                 scrape_tiktok_task.delay(username)  # enqueue async
                 messages.info(request, f"TikTok profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
+            
+            elif platform == "Sherlock":
+                profile, _ = Profile.objects.get_or_create(username=username, platform="Sherlock")
+                # call your Sherlock runner (could be sync or async)
+                sherlock_results = run_sherlock(username)
+                
+
+                # save minimal info into SocialMediaAccount or a related model
+                SocialMediaAccount.objects.update_or_create(
+                    profile=profile,
+                    platform="Sherlock",
+                    defaults={"bio": f"Sherlock search ran for {username}",
+                              "followers": 0, "following": 0, "posts_collected": 0},
+                )         
+                 # attach results into context later for dashboard
+                request.session["sherlock_results"] = sherlock_results  
+                return redirect("profile_dashboard", pk=profile.pk)    
+            
 
     else:
         form = UsernameSearchForm()
@@ -134,8 +154,15 @@ def profile_dashboard(request, pk):
     profile = get_object_or_404(Profile, pk=pk)
     profiles = [profile]  # wrap single profile in a list
     accounts = SocialMediaAccount.objects.filter(profile=profile)
+
+    sherlock_results = []
+    if profile.platform == "Sherlock":
+        sherlock_results = request.session.get("sherlock_results", [])
+
     return render(
         request,
         "profiles/dashboard.html",
-        {"profiles": profiles, "accounts": accounts},
+        {"profiles": profiles, 
+        "accounts": accounts,
+        "sherlock_results": sherlock_results,},
     )

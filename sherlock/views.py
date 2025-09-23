@@ -1,3 +1,4 @@
+"""
 import os
 import sys
 import subprocess
@@ -59,12 +60,14 @@ def sherlock_search(request):
                             "url": url.strip()
                         })
 
-            return render(request, 'sherlock/result.html', {
-                "username": username,
-                "sherlock_results": sherlock_results
-            })
+            #return render(request, 'sherlock/result.html', {
+             #   "username": username,
+              #  "sherlock_results": sherlock_results
+           # })
 
         except Exception as e:
             return HttpResponse(f"Error running Sherlock: {e}")
 
-    return render(request, 'sherlock/search.html')
+    #return render(request, 'sherlock/search.html')
+    return result.stdout.splitlines()  # return list of found sites
+    """

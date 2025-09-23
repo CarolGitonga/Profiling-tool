@@ -3,42 +3,43 @@
 
 {% block title %}User Profile Dashboard{% endblock %}
 {% block content %}
-    
-    <style>
-        body {
-            background-color: #f8f9fa;
-        }
-        .profile-header {
-            background: #fff;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-        .profile-header img {
-            width: 140px;
-            height: 140px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-bottom: 1rem;
-        }
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            margin-bottom: 1.5rem;
-            text-align: center;
-        }
-        .badge-stat {
-            font-size: 0.9rem;
-            padding: 0.5rem 0.8rem;
-            margin: 0.2rem;
-        }
-        .remove-btn {
-            margin-top: 1rem;
-        }
-    </style>
+
+<style>
+    body {
+        background-color: #f8f9fa;
+    }
+    .profile-header {
+        background: #fff;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    .profile-header img {
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 1rem;
+    }
+    .card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+    .badge-stat {
+        font-size: 0.9rem;
+        padding: 0.5rem 0.8rem;
+        margin: 0.2rem;
+    }
+    .remove-btn {
+        margin-top: 1rem;
+    }
+</style>
+
 <div class="container py-4 text-center">
 
 {% if profiles %}
@@ -63,6 +64,7 @@
 
                 {% with accounts|get_account_for:profile as account %}
                     {% if profile.platform == 'GitHub' and account %}
+                        <!-- GitHub details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
                         <div>
                             <span class="badge bg-primary badge-stat">Followers: {{ account.followers }}</span>
@@ -79,6 +81,7 @@
                             {% endif %}
                         </p>
                         <p><strong>GitHub Joined:</strong> {{ profile.github_created_at|date:"F Y" }}</p>
+
                         <form action="{% url 'unscrape_github' profile.username %}" method="post">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger remove-btn">
@@ -87,6 +90,7 @@
                         </form>
 
                     {% elif profile.platform == 'Twitter' and account %}
+                        <!-- Twitter details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
                         <div>
                             <span class="badge bg-primary badge-stat">Followers: {{ account.followers }}</span>
@@ -95,6 +99,7 @@
                         <p class="mt-3"><strong>Verified:</strong> {{ profile.verified|yesno:"Yes,No" }}</p>
                         <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
                         <p><strong>Twitter Joined:</strong> {{ profile.profile_created_at|date:"F Y" }}</p>
+
                         <form action="{% url 'unscrape_twitter' profile.username %}" method="post">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger remove-btn">
@@ -103,6 +108,7 @@
                         </form>
 
                     {% elif profile.platform == 'Instagram' and account %}
+                        <!-- Instagram details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
                         <div>
                             <span class="badge bg-primary badge-stat">Followers: {{ account.followers }}</span>
@@ -117,6 +123,7 @@
                                 Not provided
                             {% endif %}
                         </p>
+
                         <form action="{% url 'unscrape_instagram' profile.username %}" method="post">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger remove-btn">
@@ -125,6 +132,7 @@
                         </form>
 
                     {% elif profile.platform == 'TikTok' and account %}
+                        <!-- TikTok details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
                         <div>
                             <span class="badge bg-primary badge-stat">Followers: {{ account.followers }}</span>
@@ -141,12 +149,31 @@
                                 Not provided
                             {% endif %}
                         </p>
+
                         <form action="{% url 'unscrape_tiktok' profile.username %}" method="post">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-danger remove-btn">
                                 <i class="bi bi-trash"></i> Remove TikTok Data
                             </button>
                         </form>
+
+                    {% elif profile.platform == 'Sherlock' %}
+                        <!-- Sherlock results -->
+                        <h5 class="mt-3 text-primary"><i class="bi bi-search"></i> Sherlock Results</h5>
+                        {% if request.session.sherlock_results %}
+                            <ul class="list-group text-start mt-3">
+                                {% for result in request.session.sherlock_results %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>{{ result.platform }}</span>
+                                        <a href="{{ result.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            Visit
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted mt-3"><em>No Sherlock results available yet.</em></p>
+                        {% endif %}
                     {% endif %}
                 {% endwith %}
 
@@ -166,5 +193,5 @@
     <i class="bi bi-arrow-left"></i> Back to Search
 </a>
 
+</div>
 {% endblock %}
-
