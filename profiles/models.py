@@ -62,3 +62,18 @@ class SocialMediaAccount(models.Model):
 
     def __str__(self):
         return f"{self.platform} account for {self.profile.username}"
+
+# ✅ New Post model
+class Post(models.Model):
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    platform = models.CharField(max_length=100)  # Twitter, Instagram, etc.
+    content = models.TextField(blank=True, null=True)  # optional: store text, captions, commit msg, etc.
+    url = models.URLField(blank=True, null=True)       # optional: link to post
+    created_at = models.DateTimeField()  # actual time the post was made
+
+    likes = models.IntegerField(default=0)     # optional metrics
+    comments = models.IntegerField(default=0)
+    shares = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"Post on {self.platform} by {self.profile.username} at {self.created_at}"

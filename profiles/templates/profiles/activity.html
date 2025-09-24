@@ -1,0 +1,80 @@
+{% extends "pages/base.html" %}
+{% block title %}Activity - {{ profile.username }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- Page Header -->
+  <div class="text-center mb-5">
+    <h2 class="fw-bold">
+      <i class="bi bi-activity text-primary"></i> Activity Timeline for 
+      <span class="text-success">{{ profile.username }}</span>
+    </h2>
+    <p class="text-muted">
+      Visualizing posting activity across platforms over time
+    </p>
+  </div>
+
+  <!-- Line Chart Card -->
+  <div class="card shadow-sm mb-5">
+    <div class="card-header bg-primary text-white fw-bold text-center">
+      <i class="bi bi-graph-up"></i> Posts Over Time
+    </div>
+    <div class="card-body" style="max-height: 450px;">
+      <canvas id="activityLineChart"></canvas>
+    </div>
+    <div class="card-footer text-center small text-muted">
+      Data aggregated monthly across all platforms
+    </div>
+  </div>
+
+  <!-- Back Button -->
+  <div class="text-center">
+    <a href="{% url 'profile_dashboard' profile.pk %}" 
+       class="btn btn-outline-secondary shadow-sm">
+      ← Back to Dashboard
+    </a>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const ctx = document.getElementById("activityLineChart").getContext("2d");
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: {{ labels|safe }},
+      datasets: {{ datasets|safe }}
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { 
+          position: "top",
+          labels: { usePointStyle: true, boxWidth: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ": " + context.parsed.y + " posts";
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0 }
+        },
+        x: {
+          ticks: { maxRotation: 45, minRotation: 30 }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}
