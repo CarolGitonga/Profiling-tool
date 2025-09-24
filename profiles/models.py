@@ -65,7 +65,7 @@ class SocialMediaAccount(models.Model):
 
 # ✅ New Post model
 class Post(models.Model):
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="posts")
     platform = models.CharField(max_length=100)  # Twitter, Instagram, etc.
     content = models.TextField(blank=True, null=True)  # optional: store text, captions, commit msg, etc.
     url = models.URLField(blank=True, null=True)       # optional: link to post
@@ -75,5 +75,8 @@ class Post(models.Model):
     comments = models.IntegerField(default=0)
     shares = models.IntegerField(default=0)
 
+    class Meta:
+        ordering = ["-created_at"]
+
     def __str__(self):
-        return f"Post on {self.platform} by {self.profile.username} at {self.created_at}"
+        return f"{self.platform} post by {self.profile.username} on {self.created_at:%Y-%m-%d}"

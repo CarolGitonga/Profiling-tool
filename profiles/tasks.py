@@ -55,7 +55,7 @@ def scrape_tiktok_task(self, username: str) -> dict:
             return {"error": str(e), "username": username, "platform": "TikTok"}
 
 
-@shared_task(bind=True, max_retries=5, default_retry_delay=60)
+@shared_task(bind=True, max_retries=3, default_retry_delay=300)
 def scrape_instagram_task(self, username: str) -> dict:
     """
     Celery task: Scrape Instagram profile and save to DB.

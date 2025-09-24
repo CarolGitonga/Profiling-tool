@@ -42,8 +42,39 @@ def scrape_instagram_profile(username: str) -> dict | None:
         return None
     
     except Exception as e:
-        logging.exception(f"Error scraping Instagram for {username}")
+        logging.exception(f"Error scraping Instagram for {username}: {e}")
         return None
+
+def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
+    """
+    Fetch recent Instagram posts for a given user.
+    Returns a list of dicts with basic post info.
+    """
+    try:
+        L = instaloader.Instaloader()
+        L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
+
+        profile = instaloader.Profile.from_username(L.context, username)
+        posts = []
+
+        for count, post in enumerate(profile.get_posts(), start=1):
+            posts.append({
+                "shortcode": post.shortcode,
+                "caption": post.caption[:200] if post.caption else "",
+                "likes": post.likes,
+                "comments": post.comments,
+                "date": post.date_utc.strftime("%Y-%m-%d %H:%M:%S"),
+                "image_url": post.url,
+            })
+            if count >= max_posts:
+                break
+
+        return posts
+
+    except Exception as e:
+        logging.exception(f"Error scraping posts for {username}: {e}")
+        return []
+
     
 
 def unscrape_instagram_profile(username: str) -> bool:
