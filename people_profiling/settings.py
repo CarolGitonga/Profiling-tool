@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from decouple import config
 import environ
+import dj_database_url
 
 TWITTER_API_KEY = config('TWITTER_API_KEY')
 TWITTER_API_SECRET = config('TWITTER_API_SECRET')
@@ -179,8 +180,9 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 ENV = env  
 
 DATABASES = {
-    "default": env.db("DATABASE_URL")
+    'default': dj_database_url.config(conn_max_age=600, ssl_require=True)
 }
+
 
 
 
