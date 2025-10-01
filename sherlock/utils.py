@@ -17,7 +17,6 @@ def run_sherlock(username: str):
 
     result = subprocess.run(
         [
-            sys.executable,  # path to Python interpreter
             'sherlock',
             username,
             '--print-found',
