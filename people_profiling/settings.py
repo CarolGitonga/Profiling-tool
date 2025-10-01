@@ -167,7 +167,9 @@ SESSION_FILE = os.path.join(SESSION_DIR, f"{IG_LOGIN}_session")
 SHERLOCK_PATH = os.path.join(BASE_DIR, 'external', 'sherlock')
 
 # Where to store the output files
-SHERLOCK_OUTPUT = os.path.join(BASE_DIR, 'output', 'sherlock')
+#SHERLOCK_OUTPUT = os.path.join(BASE_DIR, 'output', 'sherlock')
+SHERLOCK_OUTPUT = os.path.join("/tmp", "sherlock")
+
 
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'   # Redis as broker

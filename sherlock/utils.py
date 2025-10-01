@@ -17,7 +17,7 @@ def run_sherlock(username: str):
             '-m', 'sherlock_project',
             username,
             '--print-found',
-            '--timeout', '5',
+            '--timeout', '15',
             '--output', output_file,
             "--site", "github",
             "--site", "twitter",
@@ -38,8 +38,12 @@ def run_sherlock(username: str):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        cwd=settings.SHERLOCK_PATH
+        #cwd=settings.SHERLOCK_PATH
     )
+
+    # Debugging logs
+    if result.stderr:
+        print("Sherlock Error:", result.stderr)
 
     raw_output = result.stdout + result.stderr
     sherlock_results = []
