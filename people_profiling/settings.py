@@ -14,6 +14,8 @@ from pathlib import Path
 from decouple import config
 import environ
 import dj_database_url
+import socket
+from kombu import Queue
 
 TWITTER_API_KEY = config('TWITTER_API_KEY')
 TWITTER_API_SECRET = config('TWITTER_API_SECRET', default=None)
@@ -174,8 +176,36 @@ SHERLOCK_OUTPUT = os.path.join("/tmp", "sherlock")
 
 #CELERY_BROKER_URL = 'redis://localhost:6379/0'   # Redis as broker
 #CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+#CELERY_BROKER_URL = os.getenv("REDIS_URL",default= "redis://localhost:6379/0")
+#CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Default (Render Redis)
+REDIS_URL = config("REDIS_URL", default="redis://red-d3egidl6ubrc73cs688g:6379")
+# Local Redis (Docker)
+LOCAL_REDIS_URL = "redis://localhost:6379/0"
+# Detect environment
+HOSTNAME = socket.gethostname().lower()
+if "render" in HOSTNAME:
+    # Render environment → use hosted Redis
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+    print("🌍 Using Render Redis")
+else:
+    # Local environment → use Docker Redis
+    CELERY_BROKER_URL = LOCAL_REDIS_URL
+    CELERY_RESULT_BACKEND = LOCAL_REDIS_URL
+    print("💻 Using Local Docker Redis")
+# --- Queues ---
+CELERY_TASK_QUEUES = (
+    Queue("default", routing_key="default"),
+    Queue("tiktok", routing_key="tiktok.#"),
+    Queue("instagram", routing_key="instagram.#"),
+)
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_DEFAULT_ROUTING_KEY = "default"
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Nairobi'
 
 # Initialise environment variables
 env = environ.Env()

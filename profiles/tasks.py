@@ -11,7 +11,7 @@ import random
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, queue="tiktok")
 def scrape_tiktok_task(self, username: str) -> dict:
     """
     Celery task: Scrape TikTok profile and save to DB.
@@ -116,7 +116,7 @@ def scrape_instagram_task(self, username: str) -> dict:
         except self.MaxRetriesExceededError:
             return {"error": err_msg, "username": username, "platform": "Instagram"}
             """
-@shared_task(bind=True, max_retries=5, default_retry_delay=60)
+@shared_task(bind=True, max_retries=5, default_retry_delay=60, queue="instagram")
 def scrape_instagram_task(self, username: str) -> dict:
     """
     Celery task: Scrape Instagram profile and save to DB.

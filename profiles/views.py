@@ -84,14 +84,16 @@ def search_profile(request):
             # --- INSTAGRAM (async) ---
             elif platform == "Instagram":
                 profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
-                scrape_instagram_task.delay(username)  # enqueue async
+                # Send the job to the Instagram queue (Render's Redis)
+                scrape_instagram_task.apply_async(args=[username], queue="instagram")
                 messages.info(request, f"Instagram profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
 
             # --- TIKTOK (async) ---
             elif platform == "TikTok":
                 profile, _ = Profile.objects.get_or_create(username=username, platform="TikTok")
-                scrape_tiktok_task.delay(username)  # enqueue async
+                # Send the job to the TikTok queue (local Redis)
+                scrape_tiktok_task.apply_async(args=[username], queue="tiktok")
                 messages.info(request, f"TikTok profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
             
