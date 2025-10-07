@@ -83,8 +83,8 @@ def search_profile(request):
 
             # --- INSTAGRAM (async) ---
             elif platform == "Instagram":
-                profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
                 from profiles.helpers import send_tiktok_task
+                profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
                 send_tiktok_task(username)
                 messages.info(request, f"Instagram profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
