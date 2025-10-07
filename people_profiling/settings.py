@@ -16,8 +16,8 @@ import environ
 import dj_database_url
 
 TWITTER_API_KEY = config('TWITTER_API_KEY')
-TWITTER_API_SECRET = config('TWITTER_API_SECRET')
-TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN')
+TWITTER_API_SECRET = config('TWITTER_API_SECRET', default=None)
+TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN', default=None)
 
 
 
