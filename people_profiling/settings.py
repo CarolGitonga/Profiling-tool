@@ -186,6 +186,7 @@ LOCAL_REDIS_URL = "redis://localhost:6379/0"
 
 # Detect environment
 HOSTNAME = socket.gethostname().lower()
+IS_RENDER = "render" in HOSTNAME or os.getenv("RENDER", False)
 TIKTOK_LOCAL_MODE = os.getenv("TIKTOK_LOCAL_MODE", "False").lower() == "true"
 
 if TIKTOK_LOCAL_MODE:
@@ -222,9 +223,21 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 # ✅ make it available globally
 ENV = env  
 
-DATABASES = {
-    'default': dj_database_url.config(conn_max_age=600, ssl_require=True)
-}
+# Database
+if IS_RENDER:
+    DATABASES = {
+        "default": dj_database_url.config(conn_max_age=600, ssl_require=True)
+    }
+    print("🌍 Using Render PostgreSQL (SSL required)")
+else:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default="postgres://profiling_user:12345Profile@localhost:5432/profiling_db",
+            conn_max_age=600,
+            ssl_require=False,  # 🚫 Disable SSL locally
+        )
+    }
+    print("💻 Using Local PostgreSQL (SSL disabled)")
 
 
 
