@@ -223,21 +223,39 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 # ✅ make it available globally
 ENV = env  
 
-# Database
-if IS_RENDER:
+
+
+IS_RENDER = os.getenv("RENDER", "").lower() == "true"
+TIKTOK_LOCAL_MODE = os.getenv("TIKTOK_LOCAL_MODE", "").lower() == "true"
+
+if IS_RENDER and not TIKTOK_LOCAL_MODE:
+    # Running on Render servers (web app or Instagram worker)
     DATABASES = {
         "default": dj_database_url.config(conn_max_age=600, ssl_require=True)
     }
     print("🌍 Using Render PostgreSQL (SSL required)")
+
 else:
+    # Local mode (TikTok Celery or local dev)
+    db_url = os.getenv(
+        "DATABASE_URL",
+        "postgres://profiling_user:12345Profile@localhost:5432/profiling_db"
+    )
+
+    # 🧩 If TikTok local mode but DATABASE_URL points to Render DB, disable SSL safely
     DATABASES = {
         "default": dj_database_url.config(
-            default="postgres://profiling_user:12345Profile@localhost:5432/profiling_db",
+            default=db_url,
             conn_max_age=600,
-            ssl_require=False,  # 🚫 Disable SSL locally
+            ssl_require=("render" in db_url)
         )
     }
-    print("💻 Using Local PostgreSQL (SSL disabled)")
+
+    if "dpg-" in db_url:
+        print("💻 TikTok Worker using Render PostgreSQL via local connection (no SSL)")
+    else:
+        print("💻 Using Local PostgreSQL (SSL disabled)")
+
 
 
 
