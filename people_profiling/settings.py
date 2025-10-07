@@ -179,49 +179,40 @@ SHERLOCK_OUTPUT = os.path.join("/tmp", "sherlock")
 #CELERY_BROKER_URL = os.getenv("REDIS_URL",default= "redis://localhost:6379/0")
 #CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# --- Redis URLs ---
+
+# --- Redis Configs ---
 RENDER_REDIS_URL = config("REDIS_URL", default="redis://red-d3egidl6ubrc73cs688g:6379")
 LOCAL_REDIS_URL = "redis://localhost:6379/0"
 
-# --- Detect Render environment ---
+# Detect environment
 HOSTNAME = socket.gethostname().lower()
+TIKTOK_LOCAL_MODE = os.getenv("TIKTOK_LOCAL_MODE", "False").lower() == "true"
 
-# Render always uses hosted Redis
-if "render" in HOSTNAME or os.getenv("RENDER") == "True":
+if TIKTOK_LOCAL_MODE:
+    CELERY_BROKER_URL = LOCAL_REDIS_URL
+    CELERY_RESULT_BACKEND = LOCAL_REDIS_URL
+    print("💻 TikTok worker using LOCAL Docker Redis")
+else:
     CELERY_BROKER_URL = RENDER_REDIS_URL
     CELERY_RESULT_BACKEND = RENDER_REDIS_URL
-    print("🌐 Render environment: using hosted Redis")
-else:
-    # Local development
-    if os.getenv("TIKTOK_LOCAL_MODE") == "True":
-        CELERY_BROKER_URL = LOCAL_REDIS_URL
-        CELERY_RESULT_BACKEND = LOCAL_REDIS_URL
-        print("💻 TikTok worker using LOCAL Docker Redis")
-    else:
-        CELERY_BROKER_URL = RENDER_REDIS_URL
-        CELERY_RESULT_BACKEND = RENDER_REDIS_URL
-        print("🌐 Local environment using Render Redis (default)")
+    print("🌐 Using Render Redis (default)")
 
-# --- Queues ---
+print(f"🚀 Celery Broker: {CELERY_BROKER_URL}")
+print(f"🧭 Hostname: {HOSTNAME}")
+
+# --- Celery Queues ---
 CELERY_TASK_QUEUES = (
     Queue("default", routing_key="default"),
     Queue("tiktok", routing_key="tiktok.#"),
     Queue("instagram", routing_key="instagram.#"),
 )
-CELERY_TASK_ROUTES = {
-    "profiles.tasks.scrape_tiktok_task": {"queue": "tiktok"},
-    "profiles.tasks.scrape_instagram_task": {"queue": "instagram"},
-}
 CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_DEFAULT_ROUTING_KEY = "default"
-
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Africa/Nairobi"
 
-print(f"🚀 Celery Broker: {CELERY_BROKER_URL}")
-print(f"🧭 Hostname: {HOSTNAME}")
 
 
 # Initialise environment variables
