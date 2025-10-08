@@ -40,7 +40,11 @@ SECRET_KEY = 'django-insecure-blthnd4(&8f^lecn#%9szofuzb==&g()8m8egw-h=gtt&r1yq3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["people-profiling.onrender.com"]
+ALLOWED_HOSTS = [
+    "people-profiling.onrender.com",
+    "127.0.0.1",
+    "localhost",
+    ]
 
 
 # Application definition
@@ -186,7 +190,8 @@ LOCAL_REDIS_URL = "redis://localhost:6379/0"
 
 # Detect environment
 HOSTNAME = socket.gethostname().lower()
-IS_RENDER = "render" in HOSTNAME or os.getenv("RENDER", False)
+#IS_RENDER = "render" in HOSTNAME or os.getenv("RENDER", False)
+IS_RENDER = str(os.getenv("RENDER", "False")).lower() == "true" or "render" in HOSTNAME
 TIKTOK_LOCAL_MODE = os.getenv("TIKTOK_LOCAL_MODE", "False").lower() == "true"
 
 if TIKTOK_LOCAL_MODE:
