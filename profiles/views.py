@@ -99,19 +99,8 @@ def search_profile(request):
                 # Send the correct Celery queue
                 result = scrape_tiktok_task.apply_async(args=[username], queue="tiktok")
                 messages.info(request, f"TikTok profile for {username} is being scraped in the background.")
-                #return redirect("profile_dashboard", pk=profile.pk)
-                return render(
-                    request,
-                    "profiles/loading_tiktok.html",
-                    {
-                       "task_id": result.id, 
-                       "username": username,
-                       "profile_id": profile.id,
-                       "platform": "TikTok",
-
-                    },
-
-                )
+                return redirect("profile_dashboard", pk=profile.pk)
+                
                  
             
             elif platform == "Sherlock":
