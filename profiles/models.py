@@ -13,6 +13,7 @@ class Profile(models.Model):
     platform = models.CharField(max_length=100, choices=PLATFORM_CHOICES)
     avatar_url = models.URLField(max_length=2000, blank=True, null=True)
     date_profiled = models.DateTimeField(auto_now_add=True)
+    posts_count = models.PositiveIntegerField(default=0) 
 
     # Optional fields (platform-specific)
     profile_created_at = models.DateTimeField(blank=True, null=True)  # For Twitter, Instagram

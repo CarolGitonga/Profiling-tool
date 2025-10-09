@@ -67,7 +67,7 @@ def _fetch_tiktok_info(username: str):
             "followers": stats.get("followerCount"),
             "following": stats.get("followingCount"),
             "likes": stats.get("heartCount"),
-            "video_count": stats.get("videoCount"),
+            "posts_count": int(stats.get("videoCount") or 0),
             "verified": user.get("verified"),
             "avatar": user.get("avatarLarger"),
             "success": True,
