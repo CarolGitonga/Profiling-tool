@@ -2,52 +2,52 @@ import logging
 import os
 import json
 import re
-import requests
+from scrapingbee import ScrapingBeeClient
 from django.conf import settings
 from profiles.models import Profile, SocialMediaAccount
 
+# ✅ Load API key from env
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 
 
 def _fetch_tiktok_info(username: str):
     """
-    Fetch TikTok user info using ScrapingBee API (2025-compliant version).
-    Fixes BAD REQUEST errors and handles new TikTok page structure.
+    Fetch TikTok user info using ScrapingBeeClient.
+    Works on Render — safe from 400 Bad Request issues.
     """
     if not SCRAPINGBEE_API_KEY:
         return {"error": "Missing SCRAPINGBEE_API_KEY in environment variables."}
 
-    url = f"https://www.tiktok.com/@{username}"
-    api_url = "https://app.scrapingbee.com/api/v1/"
+    target_url = f"https://www.tiktok.com/@{username}"
 
-    # ✅ Compose parameters (NO bracketed headers)
-    params = {
-        "api_key": SCRAPINGBEE_API_KEY,
-        "url": url,
-        "render_js": "true",
-        "block_resources": "false",
-        "country_code": "us",
-        # send custom headers as raw JSON string
-        "custom_headers": json.dumps({
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/122.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "en-US,en;q=0.9",
-        })
-    }
+    client = ScrapingBeeClient(api_key=SCRAPINGBEE_API_KEY)
 
     try:
-        response = requests.get(api_url, params=params, timeout=60)
-        response.raise_for_status()
-    except requests.RequestException as e:
+        # ✅ ScrapingBeeClient handles proper parameter encoding internally
+        response = client.get(
+            target_url,
+            params={
+                "render_js": "true",
+                "block_resources": "false",
+                "country_code": "us",
+            },
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+
+        html = response.text
+
+    except Exception as e:
         logging.exception(f"ScrapingBee request failed for {username}")
         return {"error": f"ScrapingBee request failed: {e}"}
 
-    html = response.text
-
-    # ✅ Extract embedded JSON (support both formats)
+    # ✅ Extract embedded JSON from TikTok
     match = re.search(r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', html)
     if not match:
         match = re.search(r'<script id="SIGI_STATE"[^>]*>(.*?)</script>', html)
@@ -62,7 +62,7 @@ def _fetch_tiktok_info(username: str):
         logging.exception(f"Failed to parse TikTok JSON for {username}")
         return {"error": f"Failed to parse TikTok JSON: {e}"}
 
-    # ✅ Handle both old and new TikTok structures
+    # ✅ Handle both TikTok data structures
     try:
         user_info = (
             data.get("__DEFAULT_SCOPE__", {})
@@ -72,6 +72,7 @@ def _fetch_tiktok_info(username: str):
         user = user_info.get("user", {})
         stats = user_info.get("stats", {})
 
+        # Fallback for new structure
         if not user and "UserModule" in data:
             users = data["UserModule"].get("users", {})
             stats_module = data["UserModule"].get("stats", {})
@@ -106,12 +107,9 @@ def _fetch_tiktok_info(username: str):
         return {"error": str(e)}
 
 
-
-
-
 def scrape_tiktok_profile(username: str):
     """
-    Synchronous wrapper that fetches and saves TikTok profile data.
+    Wrapper that fetches and saves TikTok data into DB.
     """
     try:
         result = _fetch_tiktok_info(username)
@@ -126,7 +124,6 @@ def scrape_tiktok_profile(username: str):
             profile.avatar_url = result.get("avatar")
             profile.save()
 
-            # Also update SocialMediaAccount table if present
             SocialMediaAccount.objects.update_or_create(
                 profile=profile,
                 platform="TikTok",
