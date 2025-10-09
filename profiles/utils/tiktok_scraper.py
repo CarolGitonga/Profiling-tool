@@ -11,28 +11,31 @@ SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPI
 
 def _fetch_tiktok_info(username: str):
     """
-    Fetch TikTok user info using ScrapingBee API.
-    This version fixes 400 BAD REQUEST issues by using valid parameters.
+    Fetch TikTok user info using ScrapingBee API (2025-compliant version).
+    Fixes BAD REQUEST errors and handles new TikTok page structure.
     """
     if not SCRAPINGBEE_API_KEY:
         return {"error": "Missing SCRAPINGBEE_API_KEY in environment variables."}
 
     url = f"https://www.tiktok.com/@{username}"
-
     api_url = "https://app.scrapingbee.com/api/v1/"
+
+    # ✅ Compose parameters (NO bracketed headers)
     params = {
         "api_key": SCRAPINGBEE_API_KEY,
         "url": url,
-        "render_js": "true",          # Execute JS
-        "block_resources": "false",   # Allow full page load
+        "render_js": "true",
+        "block_resources": "false",
         "country_code": "us",
-        # ✅ Use headers as proper query fields, not JSON
-        "custom_headers[User-Agent]": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "custom_headers[Accept-Language]": "en-US,en;q=0.9",
+        # send custom headers as raw JSON string
+        "custom_headers": json.dumps({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        })
     }
 
     try:
@@ -44,7 +47,7 @@ def _fetch_tiktok_info(username: str):
 
     html = response.text
 
-    # ✅ Extract JSON from either structure
+    # ✅ Extract embedded JSON (support both formats)
     match = re.search(r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', html)
     if not match:
         match = re.search(r'<script id="SIGI_STATE"[^>]*>(.*?)</script>', html)
@@ -59,7 +62,7 @@ def _fetch_tiktok_info(username: str):
         logging.exception(f"Failed to parse TikTok JSON for {username}")
         return {"error": f"Failed to parse TikTok JSON: {e}"}
 
-    # ✅ Parse both old and new TikTok JSON structures
+    # ✅ Handle both old and new TikTok structures
     try:
         user_info = (
             data.get("__DEFAULT_SCOPE__", {})
@@ -69,7 +72,6 @@ def _fetch_tiktok_info(username: str):
         user = user_info.get("user", {})
         stats = user_info.get("stats", {})
 
-        # New structure fallback
         if not user and "UserModule" in data:
             users = data["UserModule"].get("users", {})
             stats_module = data["UserModule"].get("stats", {})
@@ -102,6 +104,7 @@ def _fetch_tiktok_info(username: str):
     except Exception as e:
         logging.exception(f"Unexpected error parsing TikTok data for {username}")
         return {"error": str(e)}
+
 
 
 
