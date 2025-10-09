@@ -93,7 +93,7 @@ def scrape_tiktok_profile(username: str):
             profile.bio = result.get("bio")
             profile.followers = result.get("followers")
             profile.following = result.get("following")
-            profile.posts = result.get("video_count")
+            profile.posts_count = result.get("posts_count") or 0
             profile.avatar_url = result.get("avatar")
             profile.save()
 
