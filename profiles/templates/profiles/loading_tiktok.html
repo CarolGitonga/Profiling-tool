@@ -3,31 +3,46 @@
 
 {% block content %}
 <div class="container text-center mt-5">
-  <h2>🔍 Scraping TikTok profile for <strong>{{ username }}</strong></h2>
+  <div class="alert alert-info shadow-sm rounded-pill">
+    TikTok profile for <strong>{{ username }}</strong> is being scraped in the background.
+  </div>
+
+  <h2 class="mt-4">
+    🔍 Scraping TikTok profile for <strong>{{ username }}</strong>
+  </h2>
   <p class="text-muted mb-4">This may take a few seconds...</p>
 
-  <div class="spinner-border text-primary mb-3" role="status" style="width:3rem;height:3rem;">
+  <div class="spinner-border text-primary mb-3" role="status" style="width:3rem; height:3rem;">
     <span class="visually-hidden">Loading...</span>
   </div>
-  <p id="status">Fetching TikTok data...</p>
+
+  <p id="status" class="fw-semibold text-secondary">Fetching TikTok data...</p>
 </div>
 
 <script>
 async function checkStatus() {
   try {
-    const res = await fetch(`/profiles/task-status/{{ task_id }}/`);
-    const data = await res.json();
-    if (data.ready) {
-      document.getElementById("status").innerText = "Done! Redirecting...";
-      window.location.href = `/profiles/{{ username }}/`;
+    const response = await fetch(`/profiles/task-status/{{ task_id }}/`);
+    const data = await response.json();
+    console.log("🔎 Task status:", data);
+
+    if (data.ready && data.success) {
+      document.getElementById("status").innerText = "✅ Done! Redirecting to dashboard...";
+      setTimeout(() => {
+        window.location.href = `/profiles/{{ profile_id }}/`;
+      }, 1000);
+    } else if (data.ready && !data.success) {
+      document.getElementById("status").innerText = "❌ Scraping failed. Please try again.";
     } else {
-      setTimeout(checkStatus, 3000);
+      setTimeout(checkStatus, 3000); // poll again
     }
   } catch (err) {
     console.error("Status check failed:", err);
+    document.getElementById("status").innerText = "⚠️ Connection lost. Retrying...";
     setTimeout(checkStatus, 5000);
   }
 }
+
 checkStatus();
 </script>
 {% endblock %}

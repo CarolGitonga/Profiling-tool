@@ -106,6 +106,7 @@ def search_profile(request):
                     {
                        "task_id": result.id, 
                        "username": username,
+                       "profile_id": profile.id,
                        "platform": "TikTok",
 
                     },
