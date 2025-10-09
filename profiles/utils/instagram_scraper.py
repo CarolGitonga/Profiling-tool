@@ -42,7 +42,7 @@ def scrape_instagram_profile(username: str) -> dict | None:
         # Initialize Instaloader
         L = instaloader.Instaloader()
         # Load saved session (to avoid frequent logins and rate limits)
-        L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
+       # L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
         
         
 
