@@ -6,39 +6,43 @@ import requests
 from django.conf import settings
 from profiles.models import Profile, SocialMediaAccount
 
-# ✅ Load ScrapingBee API key from environment
+
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 
 
 def _fetch_tiktok_info(username: str):
     """
     Fetch TikTok user info using ScrapingBee API.
-    Works on Render — no Playwright or Chromium required.
-    Handles both old and new TikTok HTML structures.
+    Fully compatible with Render and fixes 400 BAD REQUEST issue.
     """
     if not SCRAPINGBEE_API_KEY:
         return {"error": "Missing SCRAPINGBEE_API_KEY in environment variables."}
 
     url = f"https://www.tiktok.com/@{username}"
 
-    params = {
-        "api_key": SCRAPINGBEE_API_KEY,
+    api_url = "https://app.scrapingbee.com/api/v1/"
+
+    payload = {
         "url": url,
-        "render_js": "true",  # Ensures JavaScript-rendered content
+        "render_js": "true",
         "block_resources": "false",
         "country_code": "us",
-        "custom_headers": json.dumps({
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "en-US,en;q=0.9",
-        }),
+    }
+
+    headers = {
+        "X-API-Key": SCRAPINGBEE_API_KEY,
+        "Content-Type": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
     }
 
     try:
-        response = requests.get("https://app.scrapingbee.com/api/v1/", params=params, timeout=60)
+        # ✅ Send JSON body instead of query params (fixes 400)
+        response = requests.post(api_url, json=payload, headers=headers, timeout=60)
         response.raise_for_status()
     except requests.RequestException as e:
         logging.exception(f"ScrapingBee request failed for {username}")
@@ -46,7 +50,7 @@ def _fetch_tiktok_info(username: str):
 
     html = response.text
 
-    # ✅ Extract embedded TikTok JSON (2 fallback patterns)
+    # ✅ Extract embedded TikTok JSON with fallbacks
     match = re.search(
         r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', html
     )
@@ -63,7 +67,6 @@ def _fetch_tiktok_info(username: str):
         logging.exception(f"Failed to parse TikTok JSON for {username}")
         return {"error": f"Failed to parse TikTok JSON: {e}"}
 
-    # ✅ Try extracting from both possible structures
     try:
         # 1️⃣ Old structure
         user_info = (
@@ -74,7 +77,7 @@ def _fetch_tiktok_info(username: str):
         user = user_info.get("user", {})
         stats = user_info.get("stats", {})
 
-        # 2️⃣ Fallback: New SIGI_STATE structure
+        # 2️⃣ Fallback for new SIGI_STATE structure
         if not user and "UserModule" in data:
             users = data["UserModule"].get("users", {})
             stats_module = data["UserModule"].get("stats", {})
@@ -86,25 +89,20 @@ def _fetch_tiktok_info(username: str):
             return {"error": f"No user data found for {username}"}
 
         return {
-            # Basic identifiers
             "username": user.get("uniqueId", "").strip(),
             "nickname": user.get("nickname", "").strip(),
             "bio": user.get("signature", "").strip(),
-
-            # Engagement statistics
             "followers": int(stats.get("followerCount") or 0),
             "following": int(stats.get("followingCount") or 0),
             "likes": int(stats.get("heartCount") or 0),
             "posts_count": int(stats.get("videoCount") or 0),
-
-            # Verification & profile
             "verified": bool(user.get("verified", False)),
-            "avatar": user.get("avatarLarger")
-                       or user.get("avatarMedium")
-                       or user.get("avatarThumb")
-                       or "",
-
-            # Meta
+            "avatar": (
+                user.get("avatarLarger")
+                or user.get("avatarMedium")
+                or user.get("avatarThumb")
+                or ""
+            ),
             "platform": "TikTok",
             "success": True,
         }
@@ -112,6 +110,7 @@ def _fetch_tiktok_info(username: str):
     except Exception as e:
         logging.exception(f"Unexpected error parsing TikTok data for {username}")
         return {"error": str(e)}
+
 
 
 def scrape_tiktok_profile(username: str):
