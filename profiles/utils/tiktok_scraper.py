@@ -9,10 +9,12 @@ from profiles.models import Profile, SocialMediaAccount
 # ✅ Load ScrapingBee API key from environment
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 
+
 def _fetch_tiktok_info(username: str):
     """
     Fetch TikTok user info using ScrapingBee API.
     Works on Render — no Playwright or Chromium required.
+    Handles both old and new TikTok HTML structures.
     """
     if not SCRAPINGBEE_API_KEY:
         return {"error": "Missing SCRAPINGBEE_API_KEY in environment variables."}
@@ -22,9 +24,17 @@ def _fetch_tiktok_info(username: str):
     params = {
         "api_key": SCRAPINGBEE_API_KEY,
         "url": url,
-        "render_js": "true",        # Ensures JavaScript content is loaded
-        "block_resources": "false", # Loads all data for better reliability
-        "country_code": "us",       # Optional: can change to 'ke' for Kenya
+        "render_js": "true",  # Ensures JavaScript-rendered content
+        "block_resources": "false",
+        "country_code": "us",
+        "custom_headers": json.dumps({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        }),
     }
 
     try:
@@ -36,11 +46,12 @@ def _fetch_tiktok_info(username: str):
 
     html = response.text
 
-    # ✅ Extract embedded TikTok JSON
+    # ✅ Extract embedded TikTok JSON (2 fallback patterns)
     match = re.search(
-        r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">(.*?)</script>',
-        html
+        r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', html
     )
+    if not match:
+        match = re.search(r'<script id="SIGI_STATE"[^>]*>(.*?)</script>', html)
 
     if not match:
         return {"error": f"Could not find TikTok JSON script for {username}"}
@@ -49,40 +60,63 @@ def _fetch_tiktok_info(username: str):
         raw_json = match.group(1)
         data = json.loads(raw_json)
     except Exception as e:
+        logging.exception(f"Failed to parse TikTok JSON for {username}")
         return {"error": f"Failed to parse TikTok JSON: {e}"}
 
-    # ✅ Extract relevant fields
+    # ✅ Try extracting from both possible structures
     try:
-        user_info = data.get("__DEFAULT_SCOPE__", {}).get("webapp.user-detail", {}).get("userInfo", {})
+        # 1️⃣ Old structure
+        user_info = (
+            data.get("__DEFAULT_SCOPE__", {})
+            .get("webapp.user-detail", {})
+            .get("userInfo", {})
+        )
         user = user_info.get("user", {})
         stats = user_info.get("stats", {})
+
+        # 2️⃣ Fallback: New SIGI_STATE structure
+        if not user and "UserModule" in data:
+            users = data["UserModule"].get("users", {})
+            stats_module = data["UserModule"].get("stats", {})
+            if username in users:
+                user = users[username]
+                stats = stats_module.get(username, {})
 
         if not user:
             return {"error": f"No user data found for {username}"}
 
         return {
-            "username": user.get("uniqueId"),
-            "nickname": user.get("nickname"),
-            "bio": user.get("signature"),
-            "followers": stats.get("followerCount"),
-            "following": stats.get("followingCount"),
-            "likes": stats.get("heartCount"),
+            # Basic identifiers
+            "username": user.get("uniqueId", "").strip(),
+            "nickname": user.get("nickname", "").strip(),
+            "bio": user.get("signature", "").strip(),
+
+            # Engagement statistics
+            "followers": int(stats.get("followerCount") or 0),
+            "following": int(stats.get("followingCount") or 0),
+            "likes": int(stats.get("heartCount") or 0),
             "posts_count": int(stats.get("videoCount") or 0),
-            "verified": user.get("verified"),
-            "avatar": user.get("avatarLarger"),
+
+            # Verification & profile
+            "verified": bool(user.get("verified", False)),
+            "avatar": user.get("avatarLarger")
+                       or user.get("avatarMedium")
+                       or user.get("avatarThumb")
+                       or "",
+
+            # Meta
+            "platform": "TikTok",
             "success": True,
         }
 
-    except KeyError as e:
-        return {"error": f"JSON structure changed: missing {e}"}
     except Exception as e:
-        logging.exception(f"Unexpected error while parsing TikTok data for {username}")
+        logging.exception(f"Unexpected error parsing TikTok data for {username}")
         return {"error": str(e)}
 
 
 def scrape_tiktok_profile(username: str):
     """
-    Synchronous wrapper that fetches and optionally saves TikTok profile data.
+    Synchronous wrapper that fetches and saves TikTok profile data.
     """
     try:
         result = _fetch_tiktok_info(username)
@@ -107,8 +141,8 @@ def scrape_tiktok_profile(username: str):
                     "following": result.get("following", 0),
                     "hearts": result.get("likes", 0),
                     "videos": result.get("posts_count", 0),
-                   "verified": result.get("verified", False),
-                   "posts_collected": 0,
+                    "verified": result.get("verified", False),
+                    "posts_collected": 0,
                 },
             )
 
