@@ -1,0 +1,33 @@
+{% extends "pages/base.html" %}
+{% block title %}Scraping TikTok Profile...{% endblock %}
+
+{% block content %}
+<div class="container text-center mt-5">
+  <h2>🔍 Scraping TikTok profile for <strong>{{ username }}</strong></h2>
+  <p class="text-muted mb-4">This may take a few seconds...</p>
+
+  <div class="spinner-border text-primary mb-3" role="status" style="width:3rem;height:3rem;">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <p id="status">Fetching TikTok data...</p>
+</div>
+
+<script>
+async function checkStatus() {
+  try {
+    const res = await fetch(`/profiles/task-status/{{ task_id }}/`);
+    const data = await res.json();
+    if (data.ready) {
+      document.getElementById("status").innerText = "Done! Redirecting...";
+      window.location.href = `/profiles/{{ username }}/`;
+    } else {
+      setTimeout(checkStatus, 3000);
+    }
+  } catch (err) {
+    console.error("Status check failed:", err);
+    setTimeout(checkStatus, 5000);
+  }
+}
+checkStatus();
+</script>
+{% endblock %}

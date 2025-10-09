@@ -16,6 +16,8 @@ from sherlock.utils import run_sherlock
 from django.db.models import Count
 from django.db.models import Avg
 from django.db.models.functions import TruncMonth
+from celery.result import AsyncResult
+from django.http import JsonResponse
 
 
 
@@ -97,7 +99,19 @@ def search_profile(request):
                 # Send the correct Celery queue
                 result = scrape_tiktok_task.apply_async(args=[username], queue="tiktok")
                 messages.info(request, f"TikTok profile for {username} is being scraped in the background.")
-                return redirect("profile_dashboard", pk=profile.pk)
+                #return redirect("profile_dashboard", pk=profile.pk)
+                return render(
+                    request,
+                    "profiles/loading_tiktok.html",
+                    {
+                       "task_id": result.id, 
+                       "username": username,
+                       "platform": "TikTok",
+
+                    },
+
+                )
+                 
             
             elif platform == "Sherlock":
                 profile, _ = Profile.objects.get_or_create(username=username, platform="Sherlock")
@@ -130,6 +144,12 @@ def delete_twitter_data(request, username):
     else:
         messages.error(request, "Profile not found or already removed.")
     return redirect("search_profile")
+
+
+
+def task_status(request, task_id):
+    res = AsyncResult(task_id)
+    return JsonResponse({"ready": res.ready(), "success": res.successful()})
 
 
 def delete_github_data(request, username):
