@@ -102,9 +102,13 @@ def scrape_tiktok_profile(username: str):
                 profile=profile,
                 platform="TikTok",
                 defaults={
-                    "username": username,
-                    "url": f"https://www.tiktok.com/@{username}",
-                    "followers": result.get("followers"),
+                    "bio": result.get("bio", ""),
+                    "followers": result.get("followers", 0),
+                    "following": result.get("following", 0),
+                    "hearts": result.get("likes", 0),
+                    "videos": result.get("posts_count", 0),
+                   "verified": result.get("verified", False),
+                   "posts_collected": 0,
                 },
             )
 
