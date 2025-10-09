@@ -94,8 +94,8 @@ def search_profile(request):
             # --- TIKTOK (async) ---
             elif platform == "TikTok":
                 profile, _ = Profile.objects.get_or_create(username=username, platform="TikTok")
-                # Send the job to the TikTok queue (local Redis)
-                scrape_tiktok_task.apply_async(args=[username], queue="tiktok")
+                # Send the correct Celery queue
+                result = scrape_tiktok_task.apply_async(args=[username], queue="tiktok")
                 messages.info(request, f"TikTok profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
             
