@@ -11,49 +11,38 @@ import random
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=30, queue="tiktok")
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="tiktok")
 def scrape_tiktok_task(self, username: str) -> dict:
     """
-    Celery task: Scrape TikTok profile and save to DB.
-    Retries automatically if scraping fails (e.g., network issues).
+    Celery task: Scrape TikTok profile via ScrapingBee and save to DB.
+    Retries automatically on transient errors (network, rate limit).
     """
     try:
-        data = scrape_tiktok_profile(username)
+        result = scrape_tiktok_profile(username)
 
-        if not data:
-            raise Exception(f"TikTok scrape returned no data for {username}")
-        if isinstance(data, dict) and "error" in data:
-            raise Exception(data["error"])
+        # Handle success
+        if result.get("success"):
+            logger.info(f"TikTok scrape succeeded for {username}")
+            return {"success": True, "username": username, "platform": "TikTok"}
 
-        with transaction.atomic():
-            profile, _ = Profile.objects.get_or_create(username=username, platform="TikTok")
-            profile.full_name = data.get("nickname", "")
-            profile.avatar_url = data.get("avatar")
-            profile.verified = data.get("verified", False)
-            profile.save()
-
-            SocialMediaAccount.objects.update_or_create(
-                profile=profile,
-                platform="TikTok",
-                defaults={
-                    "bio": data.get("bio", ""),
-                    "followers": data.get("followers", 0),
-                    "following": data.get("following", 0),
-                    "hearts": data.get("likes", 0),
-                    "videos": data.get("video_count", 0),
-                    "verified": data.get("verified", False),
-                    "posts_collected": 0,
-                },
-            )
-
-        return {"success": True, "username": username, "platform": "TikTok"}
+        # Handle explicit scrape failure (returned by scraper)
+        reason = result.get("reason") or result.get("error") or "Unknown error"
+        logger.warning(f"TikTok scrape failed for {username}: {reason}")
+        raise Exception(reason)
 
     except Exception as e:
-        logger.exception(f"TikTok scraping failed for {username}")
+        logger.exception(f"TikTok scraping error for {username}")
         try:
-            raise self.retry(exc=e, countdown=2 ** self.request.retries)
+            # Exponential backoff retries: 60s, 120s, 240s...
+            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
         except self.MaxRetriesExceededError:
-            return {"error": str(e), "username": username, "platform": "TikTok"}
+            logger.error(f"Max retries exceeded for TikTok scrape: {username}")
+            return {
+                "success": False,
+                "username": username,
+                "platform": "TikTok",
+                "reason": str(e)
+            }
 
 """
 @shared_task(bind=True, max_retries=5, default_retry_delay=60)
