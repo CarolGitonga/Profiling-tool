@@ -66,6 +66,19 @@
         <h2 class="fw-bold">Dashboard for {{ profiles.0.username }}</h2>
     </div>
 
+       <!-- 🔁 Auto-Refresh Notice -->
+    {% if not profiles.0.full_name and not profiles.0.socialmediaaccount_set.exists %}
+        <div class="alert alert-info text-center mt-3">
+            <i class="bi bi-hourglass-split"></i>
+            Profile data is still being scraped. This page will refresh automatically every 10 seconds...
+        </div>
+
+        <script>
+            // 🔁 Auto-refresh every 10 seconds while scraping is incomplete
+            setTimeout(() => location.reload(), 10000);
+        </script>
+    {% endif %}
+
  
 
 
