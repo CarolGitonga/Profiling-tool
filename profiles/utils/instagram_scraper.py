@@ -2,8 +2,39 @@
 import logging
 import instaloader
 import os
+import tempfile
 from profiles.models import Profile, SocialMediaAccount
 from django.conf import settings
+
+def get_instaloader() -> instaloader.Instaloader:
+    """Initialize Instaloader and load session automatically from local file or env."""
+    L = instaloader.Instaloader()
+    session_loaded = False
+
+    try:
+        # 1️⃣ Try to load local session (for development)
+        if hasattr(settings, "SESSION_FILE") and os.path.exists(settings.SESSION_FILE):
+            L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
+            logging.info("💻 Loaded local Instagram session file.")
+            session_loaded = True
+
+        # 2️⃣ Fallback to environment session (for Render)
+        elif os.getenv("INSTAGRAM_SESSION_DATA"):
+            session_data = os.getenv("INSTAGRAM_SESSION_DATA")
+            tmpfile = tempfile.NamedTemporaryFile(delete=False)
+            tmpfile.write(session_data.encode())
+            tmpfile.close()
+            L.load_session_from_file("iamcarolgitonga", filename=tmpfile.name)
+            logging.info("🌐 Loaded Instagram session from environment variable.")
+            session_loaded = True
+
+        if not session_loaded:
+            logging.warning("⚠️ No Instagram session available. You may hit login errors.")
+
+    except Exception as e:
+        logging.exception(f"❌ Failed to load Instagram session: {e}")
+
+    return L
 
 
 def scrape_instagram_profile(username: str) -> dict | None:
