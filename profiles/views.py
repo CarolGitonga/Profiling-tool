@@ -83,9 +83,11 @@ def search_profile(request):
 
             # --- INSTAGRAM (async) ---
             elif platform == "Instagram":
-                from profiles.helpers import send_tiktok_task
                 profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
-                send_tiktok_task(username)
+                # Send to the correct Celery queue
+                result = scrape_instagram_task.apply_async(args=[username], queue="instagram")
+                print(f"📤 Sent Instagram scrape task for {username}, task ID: {result.id}")
+
                 messages.info(request, f"Instagram profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
 
