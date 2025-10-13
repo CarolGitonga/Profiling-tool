@@ -101,8 +101,6 @@ def search_profile(request):
                 messages.info(request, f"TikTok profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
                 
-                 
-            
             elif platform == "Sherlock":
                 profile, _ = Profile.objects.get_or_create(username=username, platform="Sherlock")
                 # call your Sherlock runner (could be sync or async)
@@ -235,3 +233,18 @@ def profile_dashboard(request, pk):
     }
 
     return render( request, "profiles/dashboard.html", context)
+
+
+def behavioral_dashboard(request, username):
+    """Display behavioral analysis dashboard for a given profile."""
+    profile = get_object_or_404(Profile, username=username)
+    social = SocialMediaAccount.objects.filter(profile=profile).first()
+    analysis = getattr(profile, "behavior_analysis", None)
+
+    context = {
+        "profile": profile,
+        "social": social,
+        "analysis": analysis,
+    }
+    return render(request, "profiles/behavioral_dashboard.html", context)
+

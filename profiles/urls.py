@@ -9,6 +9,7 @@ urlpatterns = [
     path('dashboard/<int:pk>/', views.profile_dashboard, name='profile_dashboard'),
     path("activity/<int:pk>/", activity_views.activity_view, name="profile_activity"),
     #path("task-status/<str:task_id>/", views.task_status, name="task_status"),
+     path("<str:username>/dashboard/", views.behavioral_dashboard, name="behavioral_dashboard"),
 
 
     # Unscrape/delete routes
