@@ -81,3 +81,28 @@ class Post(models.Model):
 
     def __str__(self):
         return f"{self.platform} post by {self.profile.username} on {self.created_at:%Y-%m-%d}"
+    
+class BehavioralAnalysis(models.Model):
+    profile = models.OneToOneField("Profile", on_delete=models.CASCADE, related_name="behavior_analysis")
+    # Posting patterns
+    avg_post_time = models.CharField(max_length=50, null=True, blank=True)
+    most_active_days = models.JSONField(null=True, blank=True)
+    # Language & sentiment
+    sentiment_score = models.FloatField(null=True, blank=True)
+    top_keywords = models.JSONField(null=True, blank=True)
+    # Geolocation
+    geo_locations = models.JSONField(null=True, blank=True)
+    # Connections
+    network_size = models.IntegerField(null=True, blank=True)
+    network_density = models.FloatField(null=True, blank=True)
+    # Interests
+    interests = models.JSONField(null=True, blank=True)
+    # Last analysis date
+    analyzed_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Behavioral Analysis for {self.profile.username}"
+    class Meta:
+        verbose_name_plural = "Behavioral Analyses"
+    def behavior(self):
+        return getattr(self, "behavior_analysis", None)

@@ -48,3 +48,9 @@ class PostAdmin(admin.ModelAdmin):
     def content_preview(self, obj):
         return (obj.content[:50] + '...') if obj.content and len(obj.content) > 50 else obj.content
     content_preview.short_description = "Content"
+from .models import BehavioralAnalysis
+
+@admin.register(BehavioralAnalysis)
+class BehavioralAnalysisAdmin(admin.ModelAdmin):
+    list_display = ("profile", "sentiment_score", "avg_post_time", "analyzed_at")
+    search_fields = ("profile__username",)
