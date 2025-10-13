@@ -219,6 +219,7 @@ def profile_dashboard(request, pk):
     
 
     context = {
+        "profile": profile,
         "profiles": profiles,
         "accounts": accounts,
         "sherlock_results": sherlock_results,

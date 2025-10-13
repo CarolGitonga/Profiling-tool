@@ -231,10 +231,9 @@
 <a href="{% url 'profile_activity' profiles.0.pk %}" class="btn btn-primary mt-3">
   <i class="bi bi-graph-up"></i> View Activity
 </a>
-<a href="{% url 'behavioral_dashboard' profile.username %}" class="btn btn-outline-info btn-sm">
-  View Behavioral Dashboard
+<a href="{% url 'behavioral_dashboard' profiles.0.username %}" class="btn btn-info mt-3 text-white">
+  <i class="bi bi-person-lines-fill"></i> View Behavioral Dashboard
 </a>
-
 
 </div>
 
