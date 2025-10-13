@@ -52,8 +52,13 @@ def search_profile(request):
                         "bio": twitter_data["bio"],
                         "followers": twitter_data["followers_count"],
                         "posts_collected": 0,
+                        "is_private": not twitter_data.get("verified", False),
                     },
                 )
+                # Trigger Behavioral Analysis
+                ensure_behavioral_record(profile)
+                perform_behavioral_analysis.delay(profile.id)
+                logger.info(f"✅ Behavioral analysis queued for {username} (Twitter)")
                 return redirect("profile_dashboard", pk=profile.pk)
 
             # --- GITHUB (sync) ---
