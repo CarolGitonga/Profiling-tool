@@ -1,106 +1,160 @@
 {% extends "pages/base.html" %}
-{% block title %}Behavioral Dashboard – {{ profile.username }}{% endblock %}
+{% block title %}Behavioral Dashboard - {{ profile.username }}{% endblock %}
+
 {% block content %}
+<style>
+  body {
+    background-color: #f8f9fa;
+  }
+  .metric-card {
+    border-radius: 15px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+  }
+  .metric-card:hover {
+    transform: translateY(-3px);
+  }
+  .metric-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+  }
+  .keyword-badge {
+    margin: 0.3rem;
+    font-size: 0.85rem;
+    border-radius: 12px;
+  }
+  .chart-container {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    padding: 1rem;
+  }
+</style>
 
-<div class="container py-5">
-  <!-- 🧍 Profile Overview -->
-  <div class="card shadow-lg border-0 mb-5">
-    <div class="card-body d-flex align-items-center">
-      <img src="{{ profile.avatar_url }}" alt="{{ profile.username }}"
-           class="rounded-circle me-4" width="120" height="120">
-      <div>
-        <h3 class="fw-bold mb-0">{{ profile.full_name|default:profile.username }}</h3>
-        <p class="text-muted mb-2">@{{ profile.username }}</p>
-        <p>{{ social.bio|default:"No bio available." }}</p>
-        {% if social.external_url %}
-        <a href="{{ social.external_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
-          🔗 Visit Profile
-        </a>
-        {% endif %}
+<div class="container py-4">
+  <!-- Back Navigation -->
+  <a href="{% url 'profile_dashboard' profile.pk %}" class="btn btn-outline-secondary mb-4">
+    <i class="bi bi-arrow-left"></i> Back to Dashboard
+  </a>
+
+  <!-- Header -->
+  <div class="text-center mb-4">
+    <img src="{{ profile.avatar_url }}" alt="Avatar" class="rounded-circle shadow-sm mb-3" width="120" height="120">
+    <h2 class="fw-bold">{{ profile.username }} — {{ profile.platform }}</h2>
+    <p class="text-muted mb-0">{{ profile.full_name }}</p>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-3">
+      <div class="metric-card bg-primary text-white">
+        <h6>Network Size</h6>
+        <div class="metric-value">{{ analysis.network_size|default:"0" }}</div>
+        <small>Followers + Following</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card bg-success text-white">
+        <h6>Influence Score</h6>
+        <div class="metric-value">{{ analysis.influence_score|default:"N/A" }}</div>
+        <small>Relative Social Reach</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card bg-warning text-dark">
+        <h6>Sentiment</h6>
+        <div class="metric-value">{{ analysis.sentiment_score|floatformat:2 }}</div>
+        <small>Polarity of Bio / Posts</small>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card bg-info text-white">
+        <h6>Activity Pattern</h6>
+        <div class="metric-value">{{ analysis.activity_pattern|default:"N/A" }}</div>
+        <small>Posting or Contribution Behavior</small>
       </div>
     </div>
   </div>
 
-  <!-- 📊 Behavioral Insights -->
-  {% if analysis %}
+  <!-- Behavioral Insights Section -->
   <div class="row g-4">
-
-    <!-- Sentiment -->
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 p-3 text-center">
-        <h5 class="fw-bold mb-3">Sentiment Score</h5>
-        <h1 class="display-5 {% if analysis.sentiment_score > 0.2 %}text-success{% elif analysis.sentiment_score < 0 %}text-danger{% else %}text-warning{% endif %}">
-          {{ analysis.sentiment_score|floatformat:2 }}
-        </h1>
-        <p class="text-muted">(-1 = Negative, +1 = Positive)</p>
+    <div class="col-md-6">
+      <div class="chart-container">
+        <h5 class="fw-bold text-center text-secondary mb-3"><i class="bi bi-graph-up"></i> Sentiment Overview</h5>
+        <canvas id="sentimentChart"></canvas>
       </div>
     </div>
 
-    <!-- Network Size -->
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 p-3 text-center">
-        <h5 class="fw-bold mb-3">Network Size</h5>
-        <h2>{{ analysis.network_size|default:0 }}</h2>
-        <p class="text-muted">Followers + Following</p>
-      </div>
-    </div>
-
-    <!-- Avg Post Time -->
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 p-3 text-center">
-        <h5 class="fw-bold mb-3">Average Posting Time</h5>
-        <h2>{{ analysis.avg_post_time|default:"–" }}</h2>
-        <p class="text-muted">Most Active: {{ analysis.most_active_days|join:", " }}</p>
+    <div class="col-md-6">
+      <div class="chart-container">
+        <h5 class="fw-bold text-center text-secondary mb-3"><i class="bi bi-person-lines-fill"></i> Influence Breakdown</h5>
+        <canvas id="influenceChart"></canvas>
       </div>
     </div>
   </div>
 
-  <!-- 🔖 Top Keywords -->
-  <div class="card mt-5 shadow-sm border-0 p-4">
-    <h5 class="fw-bold mb-4">Top Keywords & Hashtags</h5>
+  <!-- Keywords & Interests -->
+  <div class="chart-container mt-4">
+    <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-tags"></i> Top Keywords & Interests</h5>
     {% if analysis.top_keywords %}
-      {% for key, value in analysis.top_keywords.items %}
-        <span class="badge bg-primary me-2 mb-2">#{{ key }} ({{ value }})</span>
-      {% endfor %}
+      <div class="d-flex flex-wrap">
+        {% for key, value in analysis.top_keywords.items %}
+          <span class="badge bg-dark keyword-badge">{{ key }} ({{ value }})</span>
+        {% endfor %}
+      </div>
     {% else %}
-      <p class="text-muted">No keyword data available yet.</p>
+      <p class="text-muted">No keywords identified yet.</p>
     {% endif %}
   </div>
 
-  <!-- 🗓️ Posting Pattern Chart -->
-  <div class="card mt-5 shadow-sm border-0 p-4">
-    <h5 class="fw-bold mb-4">Posting Pattern (Hours)</h5>
-    <canvas id="postingChart"></canvas>
+  <!-- Geolocation -->
+  <div class="chart-container mt-4">
+    <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-geo-alt"></i> Geolocation</h5>
+    {% if analysis.geo_locations %}
+      <p class="mb-0">{{ analysis.geo_locations|join:", " }}</p>
+    {% else %}
+      <p class="text-muted">No location data available.</p>
+    {% endif %}
   </div>
-  {% else %}
-  <div class="alert alert-warning mt-4">
-    No behavioral analysis data found for this user yet.
-  </div>
-  {% endif %}
 </div>
 
-<!-- 📈 Chart.js -->
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-const ctx = document.getElementById('postingChart');
-new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels: {{ analysis.most_active_days|safe|default:"[]" }},
-    datasets: [{
-      label: 'Activity Frequency',
-      data: [12, 7, 4, 9, 3], // Demo data — you can link real day counts later
-      backgroundColor: 'rgba(13, 110, 253, 0.6)',
-      borderRadius: 8
-    }]
-  },
-  options: {
-    plugins: { legend: { display: false } },
-    scales: {
-      y: { beginAtZero: true }
-    }
-  }
-});
+  // Sentiment Chart
+  const sentimentCtx = document.getElementById('sentimentChart');
+  new Chart(sentimentCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Positive', 'Neutral', 'Negative'],
+      datasets: [{
+        data: [
+          {{ analysis.sentiment_score|default:0|floatformat:2 }} > 0 ? {{ analysis.sentiment_score|floatformat:2 }} : 0,
+          1 - Math.abs({{ analysis.sentiment_score|default:0|floatformat:2 }}),
+          {{ analysis.sentiment_score|default:0|floatformat:2 }} < 0 ? Math.abs({{ analysis.sentiment_score|floatformat:2 }}) : 0
+        ],
+        backgroundColor: ['#28a745', '#6c757d', '#dc3545'],
+      }]
+    },
+    options: { plugins: { legend: { position: 'bottom' } } }
+  });
+
+  // Influence Chart
+  const influenceCtx = document.getElementById('influenceChart');
+  new Chart(influenceCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Network Size', 'Influence Score'],
+      datasets: [{
+        label: 'Metrics',
+        data: [{{ analysis.network_size|default:0 }}, {{ analysis.influence_score|default:0 }}],
+        backgroundColor: ['#17a2b8', '#20c997']
+      }]
+    },
+    options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+  });
 </script>
 
 {% endblock %}
