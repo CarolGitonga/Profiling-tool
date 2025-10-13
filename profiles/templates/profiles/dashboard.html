@@ -111,6 +111,11 @@
                             {% endif %}
                         </p>
                         <p><strong>GitHub Joined:</strong> {{ profile.github_created_at|date:"F Y" }}</p>
+                        <!-- 🔗 Behavioral Dashboard link -->
+    <a href="{% url 'behavioral_dashboard' profile.username profile.platform %}"
+       class="btn btn-outline-info btn-sm mt-3">
+        <i class="bi bi-graph-up"></i> View Behavioral Dashboard
+    </a>
                     {% elif profile.platform == 'Twitter' and account %}
                         <!-- Twitter details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
@@ -121,6 +126,11 @@
                         <p class="mt-3"><strong>Verified:</strong> {{ profile.verified|yesno:"Yes,No" }}</p>
                         <p><strong>Location:</strong> {{ profile.location|default:"Not specified" }}</p>
                         <p><strong>Twitter Joined:</strong> {{ profile.profile_created_at|date:"F Y" }}</p>
+                        <!-- 🔗 Behavioral Dashboard link -->
+    <a href="{% url 'behavioral_dashboard' profile.username profile.platform %}"
+       class="btn btn-outline-info btn-sm mt-3">
+        <i class="bi bi-graph-up"></i> View Behavioral Dashboard
+    </a>
                     {% elif profile.platform == 'Instagram' and account %}
                         <!-- Instagram details -->
                         <p><strong>Bio:</strong> {{ account.bio|default:"No bio provided" }}</p>
