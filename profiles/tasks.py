@@ -10,6 +10,11 @@ import random
 logger = logging.getLogger(__name__)
 
 
+def ensure_behavioral_record(profile):
+    """Ensure a BehavioralAnalysis record exists for the given profile."""
+    BehavioralAnalysis.objects.get_or_create(profile=profile)
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="tiktok")
 def scrape_tiktok_task(self, username: str) -> dict:
     """
@@ -22,7 +27,37 @@ def scrape_tiktok_task(self, username: str) -> dict:
         # Handle success
         if result.get("success"):
             logger.info(f"TikTok scrape succeeded for {username}")
+
+            #return {"success": True, "username": username, "platform": "TikTok"}
+            # Get or create profile entry
+            profile, _ = Profile.objects.get_or_create(
+                username=username,
+                platform="TikTok"
+            )
+            # Update profile basic info
+            profile.full_name = result.get("full_name", "")
+            profile.avatar_url = result.get("avatar_url")
+            profile.save()
+
+            # Update social account data
+            SocialMediaAccount.objects.update_or_create(
+                profile=profile,
+                platform="TikTok",
+                defaults={
+                    "bio": result.get("bio", ""),
+                    "followers": result.get("followers", 0),
+                    "following": result.get("following", 0),
+                    "posts_collected": result.get("posts", 0),
+                    "is_private": result.get("is_private", False),
+                    "external_url": result.get("external_url"),
+                },
+            )
+            #Create behavioral record
+            ensure_behavioral_record(profile)
+            logger.info(f"✅ Behavioral record ensured for {username} (TikTok)")
+
             return {"success": True, "username": username, "platform": "TikTok"}
+
 
         # Handle explicit scrape failure (returned by scraper)
         reason = result.get("reason") or result.get("error") or "Unknown error"
@@ -102,6 +137,9 @@ def scrape_instagram_task(self, username: str) -> dict:
                     "external_url": data.get("external_url"),
                 },
             )
+            # Create behavioral record
+            ensure_behavioral_record(profile)
+            logger.info(f"✅ Behavioral record ensured for {username} (Instagram)")
 
         return {"success": True, "username": username, "platform": "Instagram"}
 
@@ -130,7 +168,5 @@ def scrape_instagram_task(self, username: str) -> dict:
             return {"error": err_msg, "username": username, "platform": "Instagram"}
     
 
-def ensure_behavioral_record(profile):
-    BehavioralAnalysis.objects.get_or_create(profile=profile)
 
     
