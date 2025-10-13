@@ -238,8 +238,17 @@ def profile_dashboard(request, pk):
 
 def behavioral_dashboard(request, username):
     """Display behavioral analysis dashboard for a given profile."""
-    profile = get_object_or_404(Profile, username=username)
+
+    # ✅ Safely pick the latest scraped profile for this username
+    profile = Profile.objects.filter(username=username).order_by('-date_profiled').first()
+
+    if not profile:
+        raise Http404(f"No profile found for username '{username}'")
+
+    # ✅ Get one linked SocialMediaAccount (latest or first)
     social = SocialMediaAccount.objects.filter(profile=profile).first()
+
+    # ✅ Retrieve related behavioral analysis
     analysis = getattr(profile, "behavior_analysis", None)
 
     context = {
@@ -248,4 +257,5 @@ def behavioral_dashboard(request, username):
         "analysis": analysis,
     }
     return render(request, "profiles/behavioral_dashboard.html", context)
+
 
