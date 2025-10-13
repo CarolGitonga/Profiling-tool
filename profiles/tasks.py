@@ -179,74 +179,111 @@ def perform_behavioral_analysis(self, profile_id):
     """
     Analyze a user's posting behavior, language, and interests.
     Updates the BehavioralAnalysis model for the given profile.
+    Includes GitHub-specific behavioral metrics.
     """
-    from .models import Profile, BehavioralAnalysis, SocialMediaAccount  # avoid circular imports
 
     try:
         profile = Profile.objects.get(id=profile_id)
         analysis, _ = BehavioralAnalysis.objects.get_or_create(profile=profile)
 
-        # Simulate fetching user's text posts from SocialMediaAccount or other models
-        # In your project, replace this with actual post text data.
+        # Fetch bio text (used for sentiment, keyword, interest analysis)
         social_data = SocialMediaAccount.objects.filter(profile=profile).values_list("bio", flat=True)
         text_data = " ".join([t for t in social_data if t])
 
-        # -----------------------------------
-        # 🕒 1. Posting Patterns (Demo logic)
-        # -----------------------------------
-        # In a real case, use post timestamps from a RawPost model.
-        # Here we simulate a simple placeholder:
-        df = pd.DataFrame({
-            "hour": [10, 14, 14, 21, 21, 21, 22],
-            "weekday": ["Monday", "Tuesday", "Tuesday", "Friday", "Friday", "Friday", "Sunday"]
-        })
-        avg_post_time = f"{df['hour'].mode()[0]}:00"
-        most_active_days = df['weekday'].value_counts().head(3).index.tolist()
+        # ====================================
+        # 🧠 BRANCH 1: GITHUB BEHAVIOR ANALYSIS
+        # ====================================
+        if profile.platform == "GitHub":
+            sm = SocialMediaAccount.objects.filter(profile=profile, platform="GitHub").first()
 
-        # -----------------------------------
-        # 💬 2. Sentiment Analysis
-        # -----------------------------------
-        sentiment_score = 0.0
-        if text_data:
-            sentiment_score = round(TextBlob(text_data).sentiment.polarity, 2)
+            # --- Developer Engagement Metrics ---
+            followers = sm.followers if sm else 0
+            following = sm.following if sm else 0
+            repos = sm.public_repos if hasattr(sm, "public_repos") else 0
 
-        # -----------------------------------
-        # 🔖 3. Keyword & Hashtag Extraction
-        # -----------------------------------
-        hashtags = re.findall(r"#(\w+)", text_data)
-        words = re.findall(r"\b[a-zA-Z]{4,}\b", text_data.lower())  # words >= 4 chars
-        all_keywords = hashtags + words
-        keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
+            follower_ratio = round(followers / (following or 1), 2)
+            influence_score = round((followers * 0.6) + (repos * 0.4), 2)
 
-        # -----------------------------------
-        # 📍 4. Geolocation (placeholder)
-        # -----------------------------------
-        geo_locations = ["Nairobi", "Kenya"]  # Placeholder until you extract real locations
+            # --- Activity Pattern (based on repos + followers) ---
+            if repos > 50:
+                activity_pattern = "Extremely Active Developer"
+            elif repos > 20:
+                activity_pattern = "Active Developer"
+            elif repos > 5:
+                activity_pattern = "Occasional Contributor"
+            else:
+                activity_pattern = "Low GitHub Activity"
 
-        # -----------------------------------
-        # 👥 5. Network Size (followers + following)
-        # -----------------------------------
-        sm = SocialMediaAccount.objects.filter(profile=profile).first()
-        network_size = (sm.followers + sm.following) if sm else 0
+            # --- Interest Extraction ---
+            keywords = []
+            if sm.bio:
+                keywords += re.findall(r"\b[a-zA-Z]{4,}\b", sm.bio.lower())
+            if profile.company:
+                keywords.append(profile.company.lower())
+            if profile.blog:
+                keywords.append("blog")
 
-        # -----------------------------------
-        # ✅ 6. Save Analysis
-        # -----------------------------------
-        analysis.avg_post_time = avg_post_time
-        analysis.most_active_days = most_active_days
-        analysis.sentiment_score = sentiment_score
-        analysis.top_keywords = keyword_freq
-        analysis.geo_locations = geo_locations
-        analysis.network_size = network_size
-        analysis.analyzed_at = timezone.now()
-        analysis.save()
+            keyword_freq = pd.Series(keywords).value_counts().head(10).to_dict() if keywords else {}
 
-        logger.info(f"✅ Behavioral analysis completed for {profile.username}")
-        return {"success": True, "profile": profile.username}
+            # --- Sentiment of bio (optional heuristic) ---
+            sentiment_score = round(TextBlob(sm.bio).sentiment.polarity, 2) if sm and sm.bio else 0.0
+
+            # --- Save GitHub Analysis ---
+            analysis.avg_post_time = "N/A"  # not applicable for GitHub
+            analysis.most_active_days = ["Varies"]  # GitHub data doesn’t include weekdays here
+            analysis.sentiment_score = sentiment_score
+            analysis.top_keywords = keyword_freq
+            analysis.geo_locations = [profile.location or "Unknown"]
+            analysis.network_size = followers + following
+            analysis.influence_score = influence_score  # optional new field if added to model
+            analysis.activity_pattern = activity_pattern
+            analysis.analyzed_at = timezone.now()
+            analysis.save()
+
+            logger.info(f"✅ GitHub Behavioral analysis completed for {profile.username}")
+            return {"success": True, "profile": profile.username}
+
+        # ====================================
+        # 🧠 BRANCH 2: GENERIC (Instagram/TikTok)
+        # ====================================
+        else:
+            # --- Posting Patterns (demo) ---
+            df = pd.DataFrame({
+                "hour": [10, 14, 14, 21, 21, 21, 22],
+                "weekday": ["Monday", "Tuesday", "Tuesday", "Friday", "Friday", "Friday", "Sunday"]
+            })
+            avg_post_time = f"{df['hour'].mode()[0]}:00"
+            most_active_days = df["weekday"].value_counts().head(3).index.tolist()
+
+            # --- Sentiment Analysis ---
+            sentiment_score = round(TextBlob(text_data).sentiment.polarity, 2) if text_data else 0.0
+
+            # --- Keyword Extraction ---
+            hashtags = re.findall(r"#(\w+)", text_data)
+            words = re.findall(r"\b[a-zA-Z]{4,}\b", text_data.lower())
+            all_keywords = hashtags + words
+            keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
+
+            # --- Geolocation ---
+            geo_locations = ["Nairobi", "Kenya"]  # placeholder
+
+            # --- Network Size ---
+            sm = SocialMediaAccount.objects.filter(profile=profile).first()
+            network_size = (sm.followers + sm.following) if sm else 0
+
+            # --- Save Generic Analysis ---
+            analysis.avg_post_time = avg_post_time
+            analysis.most_active_days = most_active_days
+            analysis.sentiment_score = sentiment_score
+            analysis.top_keywords = keyword_freq
+            analysis.geo_locations = geo_locations
+            analysis.network_size = network_size
+            analysis.analyzed_at = timezone.now()
+            analysis.save()
+
+            logger.info(f"✅ Behavioral analysis completed for {profile.username}")
+            return {"success": True, "profile": profile.username}
 
     except Exception as e:
         logger.exception(f"Behavioral analysis failed for profile {profile_id}: {e}")
         return {"success": False, "error": str(e)}
-
-
-    

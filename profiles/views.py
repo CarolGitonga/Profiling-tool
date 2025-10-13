@@ -1,8 +1,9 @@
 
 # user-facing logic (form handling, enqueue Celery tasks, render templates)
 import json
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
-from profiles.tasks import scrape_instagram_task, scrape_tiktok_task
+from profiles.tasks import ensure_behavioral_record, perform_behavioral_analysis, scrape_instagram_task, scrape_tiktok_task
 from profiles.utils.github_scraper import scrape_github_profile, unscrape_github_profile
 from profiles.utils.instagram_scraper import unscrape_instagram_profile
 from profiles.utils.tiktok_scraper import unscrape_tiktok_profile
@@ -19,7 +20,7 @@ from django.db.models.functions import TruncMonth
 from celery.result import AsyncResult
 from django.http import Http404, JsonResponse
 
-
+logger = logging.getLogger(__name__)
 
 
 def search_profile(request):
@@ -81,6 +82,12 @@ def search_profile(request):
                         "posts_collected": 0,
                     },
                 )
+                 # Ensure behavioral record exists
+                ensure_behavioral_record(profile)
+                # Queue asynchronous behavioral analysis
+                perform_behavioral_analysis.delay(profile.id)
+
+                logger.info(f"✅ Behavioral analysis queued for {username} (GitHub)")
                 return redirect("profile_dashboard", pk=profile.pk)
 
             # --- INSTAGRAM (async) ---
