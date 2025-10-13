@@ -39,7 +39,7 @@ services:
     env: python
     plan: starter
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "celery -A profiling worker -l info -Q default,instagram,tiktok"
+    startCommand: "celery -A people_profiling worker -l info -Q default,instagram,tiktok"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: profiling.settings.production
