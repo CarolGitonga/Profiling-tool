@@ -5,7 +5,10 @@ from .utils.tiktok_scraper import scrape_tiktok_profile
 from .utils.instagram_scraper import scrape_instagram_profile
 from .models import BehavioralAnalysis, Profile, SocialMediaAccount
 import random
-
+import pandas as pd
+import re
+from textblob import TextBlob
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,7 @@ def scrape_tiktok_task(self, username: str) -> dict:
             )
             #Create behavioral record
             ensure_behavioral_record(profile)
+            perform_behavioral_analysis.delay(profile.id)
             logger.info(f"✅ Behavioral record ensured for {username} (TikTok)")
 
             return {"success": True, "username": username, "platform": "TikTok"}
@@ -139,6 +143,7 @@ def scrape_instagram_task(self, username: str) -> dict:
             )
             # Create behavioral record
             ensure_behavioral_record(profile)
+            perform_behavioral_analysis.delay(profile.id)
             logger.info(f"✅ Behavioral record ensured for {username} (Instagram)")
 
         return {"success": True, "username": username, "platform": "Instagram"}
@@ -167,6 +172,81 @@ def scrape_instagram_task(self, username: str) -> dict:
         except self.MaxRetriesExceededError:
             return {"error": err_msg, "username": username, "platform": "Instagram"}
     
+
+
+@shared_task(bind=True, queue="default")
+def perform_behavioral_analysis(self, profile_id):
+    """
+    Analyze a user's posting behavior, language, and interests.
+    Updates the BehavioralAnalysis model for the given profile.
+    """
+    from .models import Profile, BehavioralAnalysis, SocialMediaAccount  # avoid circular imports
+
+    try:
+        profile = Profile.objects.get(id=profile_id)
+        analysis, _ = BehavioralAnalysis.objects.get_or_create(profile=profile)
+
+        # Simulate fetching user's text posts from SocialMediaAccount or other models
+        # In your project, replace this with actual post text data.
+        social_data = SocialMediaAccount.objects.filter(profile=profile).values_list("bio", flat=True)
+        text_data = " ".join([t for t in social_data if t])
+
+        # -----------------------------------
+        # 🕒 1. Posting Patterns (Demo logic)
+        # -----------------------------------
+        # In a real case, use post timestamps from a RawPost model.
+        # Here we simulate a simple placeholder:
+        df = pd.DataFrame({
+            "hour": [10, 14, 14, 21, 21, 21, 22],
+            "weekday": ["Monday", "Tuesday", "Tuesday", "Friday", "Friday", "Friday", "Sunday"]
+        })
+        avg_post_time = f"{df['hour'].mode()[0]}:00"
+        most_active_days = df['weekday'].value_counts().head(3).index.tolist()
+
+        # -----------------------------------
+        # 💬 2. Sentiment Analysis
+        # -----------------------------------
+        sentiment_score = 0.0
+        if text_data:
+            sentiment_score = round(TextBlob(text_data).sentiment.polarity, 2)
+
+        # -----------------------------------
+        # 🔖 3. Keyword & Hashtag Extraction
+        # -----------------------------------
+        hashtags = re.findall(r"#(\w+)", text_data)
+        words = re.findall(r"\b[a-zA-Z]{4,}\b", text_data.lower())  # words >= 4 chars
+        all_keywords = hashtags + words
+        keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
+
+        # -----------------------------------
+        # 📍 4. Geolocation (placeholder)
+        # -----------------------------------
+        geo_locations = ["Nairobi", "Kenya"]  # Placeholder until you extract real locations
+
+        # -----------------------------------
+        # 👥 5. Network Size (followers + following)
+        # -----------------------------------
+        sm = SocialMediaAccount.objects.filter(profile=profile).first()
+        network_size = (sm.followers + sm.following) if sm else 0
+
+        # -----------------------------------
+        # ✅ 6. Save Analysis
+        # -----------------------------------
+        analysis.avg_post_time = avg_post_time
+        analysis.most_active_days = most_active_days
+        analysis.sentiment_score = sentiment_score
+        analysis.top_keywords = keyword_freq
+        analysis.geo_locations = geo_locations
+        analysis.network_size = network_size
+        analysis.analyzed_at = timezone.now()
+        analysis.save()
+
+        logger.info(f"✅ Behavioral analysis completed for {profile.username}")
+        return {"success": True, "profile": profile.username}
+
+    except Exception as e:
+        logger.exception(f"Behavioral analysis failed for profile {profile_id}: {e}")
+        return {"success": False, "error": str(e)}
 
 
     
