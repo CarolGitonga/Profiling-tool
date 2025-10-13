@@ -17,7 +17,7 @@ from django.db.models import Count
 from django.db.models import Avg
 from django.db.models.functions import TruncMonth
 from celery.result import AsyncResult
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 
 
 
@@ -236,26 +236,20 @@ def profile_dashboard(request, pk):
     return render( request, "profiles/dashboard.html", context)
 
 
-def behavioral_dashboard(request, username):
-    """Display behavioral analysis dashboard for a given profile."""
-
-    # ✅ Safely pick the latest scraped profile for this username
-    profile = Profile.objects.filter(username=username).order_by('-date_profiled').first()
+def behavioral_dashboard(request, username, platform):
+    """Display behavioral analysis dashboard for a specific platform profile."""
+    profile = Profile.objects.filter(username=username, platform=platform).order_by("-date_profiled").first()
 
     if not profile:
-        raise Http404(f"No profile found for username '{username}'")
+        raise Http404(f"No profile found for username '{username}' on platform '{platform}'")
 
-    # ✅ Get one linked SocialMediaAccount (latest or first)
-    social = SocialMediaAccount.objects.filter(profile=profile).first()
-
-    # ✅ Retrieve related behavioral analysis
+    social = SocialMediaAccount.objects.filter(profile=profile, platform=platform).first()
     analysis = getattr(profile, "behavior_analysis", None)
 
     context = {
         "profile": profile,
         "social": social,
         "analysis": analysis,
+        "platform": platform,
     }
     return render(request, "profiles/behavioral_dashboard.html", context)
-
-
