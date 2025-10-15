@@ -64,23 +64,19 @@ class SocialMediaAccount(models.Model):
     def __str__(self):
         return f"{self.platform} account for {self.profile.username}"
 
-# ✅ New Post model
-class Post(models.Model):
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="posts")
-    platform = models.CharField(max_length=100)  # Twitter, Instagram, etc.
-    content = models.TextField(blank=True, null=True)  # optional: store text, captions, commit msg, etc.
-    url = models.URLField(blank=True, null=True)       # optional: link to post
-    created_at = models.DateTimeField()  # actual time the post was made
-
-    likes = models.IntegerField(default=0)     # optional metrics
+class RawPost(models.Model):
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    platform = models.CharField(max_length=50)
+    post_id = models.CharField(max_length=255, blank=True, null=True)
+    content = models.TextField()
+    timestamp = models.DateTimeField(blank=True, null=True)
+    likes = models.IntegerField(default=0)
     comments = models.IntegerField(default=0)
-    shares = models.IntegerField(default=0)
-
-    class Meta:
-        ordering = ["-created_at"]
+    sentiment_score = models.FloatField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.platform} post by {self.profile.username} on {self.created_at:%Y-%m-%d}"
+        return f"{self.platform} post by {self.profile.username}"
+
     
 class BehavioralAnalysis(models.Model):
     profile = models.OneToOneField("Profile", on_delete=models.CASCADE, related_name="behavior_analysis")

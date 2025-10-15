@@ -1,6 +1,9 @@
+from profile import Profile
 from django.conf import settings
 import tweepy
 from django.core.cache import cache
+from django.utils import timezone
+from profiles.models import RawPost
 
 api_key = settings.TWITTER_API_KEY
 
@@ -45,6 +48,59 @@ def get_twitter_profile(username: str) -> dict:
     except tweepy.TweepyException as e:
         print("Error fetching Twitter profile:", e)
         return None
+
+def fetch_and_store_tweets(username: str, client=None, limit: int = 10):
+    """
+    Fetch recent tweets from a user's timeline and save them to RawPost.
+    """
+    if not client:
+        client = tweepy.Client(bearer_token=settings.TWITTER_BEARER_TOKEN)
+        try:
+            user = client.get_user(username=username)
+            if not user.data:
+                print(f" No Twitter user found for {username}")
+                return []
+            user_id = user.data.id
+
+            tweets = client.get_users_tweets(
+                id=user_id,
+                max_results=limit,
+                tweet_fields=["created_at", "public_metrics", "text"]
+            )
+            if not tweets.data:
+                print(f"No recent tweets found for {username}")
+                return []
+            
+            profile = Profile.objects.filter(username=username, platform="Twitter").first()
+            if not profile:
+                print(f" No Profile object found for {username} (Twitter). Skipping tweet save.")
+                return []
+            
+            saved_tweets = []
+            for tweet in tweets.data:
+                content = tweet.text.strip()
+                metrics = tweet.public_metrics or {}
+
+                post, created = RawPost.objects.update_or_create(
+                    profile=profile,
+                    content=content,
+                    platform="Twitter",
+                    defaults={
+                        "timestamp": tweet.created_at or timezone.now(),
+                        "likes": metrics.get("like_count", 0),
+                        "comments": metrics.get("reply_count", 0),
+                    },
+                )
+                saved_tweets.append(post)
+            print(f"Saved {len(saved_tweets)} tweets for {username}")
+            return saved_tweets
+        except tweepy.TweepyException as e:
+            print(f"❌ Error fetching tweets for {username}: {e}")
+            return []
+        except Exception as e:
+            print(f"⚠️ Unexpected error saving tweets for {username}: {e}")
+            return []
+
 
 def unscrape_twitter_bio(username: str) -> bool:
     """

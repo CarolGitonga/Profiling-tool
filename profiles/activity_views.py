@@ -3,14 +3,14 @@ import json
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Count
 from django.db.models.functions import TruncMonth
-from .models import Post, Profile
+from .models import RawPost, Profile
 
 def activity_view(request, pk):
     profile = get_object_or_404(Profile, pk=pk)
 
     # Aggregate posts/activity by month across social accounts
     posts_data = (
-    Post.objects.filter(profile=profile)
+    RawPost.objects.filter(profile=profile)
         .annotate(month=TruncMonth("created_at"))
         .values("platform", "month")
         .annotate(count=Count("id"))

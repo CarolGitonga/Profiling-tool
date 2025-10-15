@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Profile, SocialMediaAccount, Post
+from .models import BehavioralAnalysis, Profile, RawPost, SocialMediaAccount
 
 
 @admin.register(Profile)
@@ -34,21 +34,17 @@ class SocialMediaAccountAdmin(admin.ModelAdmin):
     show_verified.boolean = True  # adds ✅/❌ in admin list
 
 
-@admin.register(Post)
-class PostAdmin(admin.ModelAdmin):
-    list_display = (
-        'profile', 'platform', 'content_preview',
-        'likes', 'comments', 'shares', 'created_at',
-    )
-    list_filter = ('platform', 'created_at')
-    search_fields = ('profile__username', 'content')
-    ordering = ('-created_at',)
+@admin.register(RawPost)
+class RawPostAdmin(admin.ModelAdmin):
+    list_display = ("profile", "platform", "short_content", "timestamp", "likes", "comments", "sentiment_score")
+    search_fields = ("profile__username", "content", "platform")
+    list_filter = ("platform", "timestamp")
 
-    # Show preview instead of full content
-    def content_preview(self, obj):
-        return (obj.content[:50] + '...') if obj.content and len(obj.content) > 50 else obj.content
-    content_preview.short_description = "Content"
-from .models import BehavioralAnalysis
+    def short_content(self, obj):
+        """Show first 50 chars of post content."""
+        return (obj.content[:50] + "...") if len(obj.content) > 50 else obj.content
+    short_content.short_description = "Post Content"
+
 
 @admin.register(BehavioralAnalysis)
 class BehavioralAnalysisAdmin(admin.ModelAdmin):
