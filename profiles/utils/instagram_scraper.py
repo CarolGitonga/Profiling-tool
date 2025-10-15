@@ -86,7 +86,7 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
     posts_saved = []
     try:
         L = instaloader.Instaloader()
-        L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
+       # L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
         profile = instaloader.Profile.from_username(L.context, username)
 
         db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
