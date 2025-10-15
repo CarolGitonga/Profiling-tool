@@ -3,9 +3,11 @@ import logging
 import instaloader
 import os
 import tempfile
-from profiles.models import Profile, SocialMediaAccount
+from profiles.models import Profile, RawPost, SocialMediaAccount
 from django.conf import settings
+from django.utils import timezone
 
+logger = logging.getLogger(__name__)
 def get_instaloader() -> instaloader.Instaloader:
     """Initialize Instaloader and load session automatically from local file or env."""
     L = instaloader.Instaloader()
@@ -78,45 +80,58 @@ def scrape_instagram_profile(username: str) -> dict | None:
 
 def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
     """
-    Fetch recent Instagram posts for a given user.
-    Returns a list of dicts with basic post info.
+    Fetch recent Instagram posts for a given user and save to RawPost.
+    Each post includes caption, likes, comments, and timestamp.
     """
+    posts_saved = []
     try:
         L = instaloader.Instaloader()
         L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
-
         profile = instaloader.Profile.from_username(L.context, username)
-        posts = []
 
-        for count, post in enumerate(profile.get_posts(), start=1):
-            posts.append({
-                "shortcode": post.shortcode,
-                "caption": post.caption[:200] if post.caption else "",
-                "likes": post.likes,
-                "comments": post.comments,
-                "date": post.date_utc.strftime("%Y-%m-%d %H:%M:%S"),
-                "image_url": post.url,
-            })
+        db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
+        if not db_profile:
+            logger.warning(f"⚠️ No Profile found for {username} — skipping post save.")
+            return []
+        
+        count = 0
+        for post in profile.get_posts():
             if count >= max_posts:
                 break
+            caption = post.caption or ""
+            RawPost.objects.update_or_create(
+                profile=db_profile,
+                content=caption[:500],  # limit text size
+                platform="Instagram",
+                defaults={
+                    "timestamp": post.date_utc or timezone.now(),
+                    "likes": post.likes,
+                    "comments": post.comments,
+                },
+            )
+            posts_saved.append(caption)
+            count += 1
+        logger.info(f"✅ Saved {len(posts_saved)} Instagram posts for {username}")
+        return posts_saved
+        
 
-        return posts
-
+    except instaloader.exceptions.ConnectionException as e:
+        logger.warning(f"Connection error fetching posts for {username}: {e}")
+        return []
     except Exception as e:
-        logging.exception(f"Error scraping posts for {username}: {e}")
+        logger.exception(f"Error scraping posts for {username}: {e}")
         return []
 
     
 
 def unscrape_instagram_profile(username: str) -> bool:
-    """
-    Removes stored Instagram profile and associated social media account data.
-    """
+    """Removes stored Instagram profile and associated social data."""
     try:
-        profile = Profile.objects.get(username=username, platform='Instagram')
-        SocialMediaAccount.objects.filter(profile=profile, platform='Instagram').delete()
+        profile = Profile.objects.get(username=username, platform="Instagram")
+        SocialMediaAccount.objects.filter(profile=profile, platform="Instagram").delete()
+        RawPost.objects.filter(profile=profile, platform="Instagram").delete()
         profile.delete()
+        logger.info(f"🗑️ Removed Instagram profile and posts for {username}")
         return True
-    
     except Profile.DoesNotExist:
         return False

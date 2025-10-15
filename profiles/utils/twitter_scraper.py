@@ -104,13 +104,20 @@ def fetch_and_store_tweets(username: str, client=None, limit: int = 10):
 
 def unscrape_twitter_bio(username: str) -> bool:
     """
-    Simulates "unscraping" by removing cached/stored Twitter bio data.
-    Deletes SocialMediaAccount entries tied to Twitter for the given profile.
+    Deletes stored Twitter bio and posts from DB.
     """
-    from profiles.models import Profile, SocialMediaAccount
+    from profiles.models import SocialMediaAccount
+
     try:
-        profile = Profile.objects.get(username=username, platform='Twitter')
-        SocialMediaAccount.objects.filter(profile=profile, platform='Twitter').delete()
+        profile = Profile.objects.get(username=username, platform="Twitter")
+
+        # Delete associated social data and posts
+        SocialMediaAccount.objects.filter(profile=profile, platform="Twitter").delete()
+        RawPost.objects.filter(profile=profile, platform="Twitter").delete()
+
+        print(f"🗑️ Cleared Twitter bio and posts for {username}")
         return True
+
     except Profile.DoesNotExist:
+        print(f"⚠️ Profile for {username} not found.")
         return False
