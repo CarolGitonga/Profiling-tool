@@ -259,31 +259,37 @@ def perform_behavioral_analysis(self, profile_id):
             avg_post_time = None
             most_active_days = []
 
-            # --- Sentiment Analysis ---
-            sentiment_score = round(TextBlob(text_data).sentiment.polarity, 2) if text_data else 0.0
-            # 🧩 Fallback: Use ScrapingBee to get sentiment from captions if no posts
+         # --- Sentiment Analysis ---         
         sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
+        sentiments = []
+        captions = list(posts_qs.values_list("content", flat=True)) if posts_qs.exists() else []
         used_scrapingbee = False
 
-        if profile.platform == "Instagram" and not posts_qs.exists():
+        if profile.platform == "Instagram" and not captions:
             used_scrapingbee = True
             captions = scrape_instagram_posts_scrapingbee(profile.username, max_posts=10)
-            if captions:
-                for caption, sentiment in captions:
-                    if sentiment > 0.05:
-                        sentiment_distribution["positive"] += 1
-                    elif sentiment < -0.05:
-                        sentiment_distribution["negative"] += 1
-                    else:
-                        sentiment_distribution["neutral"] += 1
+        for item in captions:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    caption, sentiment = item
+                else:
+                    sentiment = round(TextBlob(caption).sentiment.polarity, 2)
+                sentiments.append(sentiment)
+                    
+                
+                if sentiment > 0.05:
+                    sentiment_distribution["positive"] += 1
+                elif sentiment < -0.05:
+                    sentiment_distribution["negative"] += 1
+                else:
+                    sentiment_distribution["neutral"] += 1
 
-                    RawPost.objects.update_or_create(
-                        profile=profile,
-                        content=caption[:500],
-                        platform="Instagram",
-                        defaults={
-                            "sentiment_score": sentiment,
-                            "timestamp": timezone.now(),
+                RawPost.objects.update_or_create(
+                    profile=profile,
+                    content=caption[:500],
+                    platform="Instagram",
+                    defaults={
+                        "sentiment_score": sentiment,
+                        "timestamp": timezone.now(),
                         },
                     )
 
