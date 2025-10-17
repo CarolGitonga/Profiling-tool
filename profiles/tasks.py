@@ -9,6 +9,7 @@ import pandas as pd
 import re
 from textblob import TextBlob
 from django.utils import timezone
+from profiles.utils.instagram_scrapingbee_scraper import scrape_instagram_posts_scrapingbee
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +261,37 @@ def perform_behavioral_analysis(self, profile_id):
 
             # --- Sentiment Analysis ---
             sentiment_score = round(TextBlob(text_data).sentiment.polarity, 2) if text_data else 0.0
+            # 🧩 Fallback: Use ScrapingBee to get sentiment from captions if no posts
+        sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
+        used_scrapingbee = False
+
+        if profile.platform == "Instagram" and not posts_qs.exists():
+            used_scrapingbee = True
+            captions = scrape_instagram_posts_scrapingbee(profile.username, max_posts=10)
+            if captions:
+                for caption, sentiment in captions:
+                    if sentiment > 0.05:
+                        sentiment_distribution["positive"] += 1
+                    elif sentiment < -0.05:
+                        sentiment_distribution["negative"] += 1
+                    else:
+                        sentiment_distribution["neutral"] += 1
+
+                    RawPost.objects.update_or_create(
+                        profile=profile,
+                        content=caption[:500],
+                        platform="Instagram",
+                        defaults={
+                            "sentiment_score": sentiment,
+                            "timestamp": timezone.now(),
+                        },
+                    )
+
+                sentiment_score = round(
+                    (sentiment_distribution["positive"] - sentiment_distribution["negative"])
+                    / max(1, sum(sentiment_distribution.values())),
+                    2,
+                )
 
             # --- Keyword Extraction ---
             hashtags = re.findall(r"#(\w+)", text_data)
