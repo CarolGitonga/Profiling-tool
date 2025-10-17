@@ -266,6 +266,9 @@ def perform_behavioral_analysis(self, profile_id):
             words = re.findall(r"\b[a-zA-Z]{4,}\b", text_data.lower())
             all_keywords = hashtags + words
             keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
+            # --- Network Size ---
+            sm = SocialMediaAccount.objects.filter(profile=profile).first()
+            network_size = (sm.followers + sm.following) if sm else 0
 
             # --- Geolocation ---
             geo_locations = []
@@ -273,9 +276,7 @@ def perform_behavioral_analysis(self, profile_id):
                if "nairobi" in sm.bio.lower(): geo_locations.append("Nairobi")
                if "kenya" in sm.bio.lower(): geo_locations.append("Kenya")
 
-            # --- Network Size ---
-            sm = SocialMediaAccount.objects.filter(profile=profile).first()
-            network_size = (sm.followers + sm.following) if sm else 0
+            
 
             # --- Save Generic Analysis ---
             analysis.avg_post_time = avg_post_time
