@@ -3,7 +3,7 @@ from celery import shared_task
 from django.db import transaction
 from .utils.tiktok_scraper import scrape_tiktok_profile
 from .utils.instagram_scraper import scrape_instagram_profile
-from .models import BehavioralAnalysis, Profile, SocialMediaAccount
+from .models import BehavioralAnalysis, Profile, RawPost, SocialMediaAccount
 import random
 import pandas as pd
 import re
@@ -188,6 +188,7 @@ def perform_behavioral_analysis(self, profile_id):
 
         # Fetch bio text (used for sentiment, keyword, interest analysis)
         social_data = SocialMediaAccount.objects.filter(profile=profile).values_list("bio", flat=True)
+        posts = list(RawPost.objects.filter(profile=profile).values_list("content", flat=True))
         text_data = " ".join([t for t in social_data if t])
 
         # ====================================
@@ -246,14 +247,16 @@ def perform_behavioral_analysis(self, profile_id):
         # ====================================
         # 🧠 BRANCH 2: GENERIC (Instagram/TikTok)
         # ====================================
-        else:
-            # --- Posting Patterns (demo) ---
-            df = pd.DataFrame({
-                "hour": [10, 14, 14, 21, 21, 21, 22],
-                "weekday": ["Monday", "Tuesday", "Tuesday", "Friday", "Friday", "Friday", "Sunday"]
-            })
-            avg_post_time = f"{df['hour'].mode()[0]}:00"
+        posts_qs = RawPost.objects.filter(profile=profile)
+        if posts_qs.exists():
+            df = pd.DataFrame(list(posts_qs.values("timestamp")))
+            df["hour"] = df["timestamp"].apply(lambda x: x.hour)
+            df["weekday"] = df["timestamp"].apply(lambda x: x.strftime("%A"))
+            avg_post_time = f"{int(df['hour'].mode()[0])}:00"
             most_active_days = df["weekday"].value_counts().head(3).index.tolist()
+        else:
+            avg_post_time = None
+            most_active_days = []
 
             # --- Sentiment Analysis ---
             sentiment_score = round(TextBlob(text_data).sentiment.polarity, 2) if text_data else 0.0
@@ -265,7 +268,10 @@ def perform_behavioral_analysis(self, profile_id):
             keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
 
             # --- Geolocation ---
-            geo_locations = ["Nairobi", "Kenya"]  # placeholder
+            geo_locations = []
+            if sm and sm.bio:
+               if "nairobi" in sm.bio.lower(): geo_locations.append("Nairobi")
+               if "kenya" in sm.bio.lower(): geo_locations.append("Kenya")
 
             # --- Network Size ---
             sm = SocialMediaAccount.objects.filter(profile=profile).first()
