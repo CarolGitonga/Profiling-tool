@@ -6,6 +6,7 @@ import tempfile
 from profiles.models import Profile, RawPost, SocialMediaAccount
 from django.conf import settings
 from django.utils import timezone
+from textblob import TextBlob
 
 logger = logging.getLogger(__name__)
 def get_instaloader() -> instaloader.Instaloader:
@@ -99,18 +100,32 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
             if count >= max_posts:
                 break
             caption = post.caption or ""
+            timestamp = post.date_utc or timezone.now()
+
+            # 🧠 Sentiment analysis
+            sentiment = round(TextBlob(caption).sentiment.polarity, 3) if caption else 0.0
             RawPost.objects.update_or_create(
                 profile=db_profile,
-                content=caption[:500],  # limit text size
                 platform="Instagram",
+                post_id=post.shortcode, 
                 defaults={
-                    "timestamp": post.date_utc or timezone.now(),
+                    "content": caption[:500],
+                    "timestamp": timestamp,
                     "likes": post.likes,
                     "comments": post.comments,
+                    "sentiment_score": sentiment,
                 },
             )
-            posts_saved.append(caption)
+            posts_saved.append({
+                "post_id": post.shortcode,
+                "caption": caption[:100],
+                "likes": post.likes,
+                "comments": post.comments,
+                "sentiment": sentiment,
+                "timestamp": timestamp.strftime("%Y-%m-%d %H:%M"),
+            })
             count += 1
+
         logger.info(f"✅ Saved {len(posts_saved)} Instagram posts for {username}")
         return posts_saved
         
