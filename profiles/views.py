@@ -9,7 +9,7 @@ from profiles.utils.instagram_scraper import unscrape_instagram_profile
 from profiles.utils.tiktok_scraper import unscrape_tiktok_profile
 from profiles.utils.twitter_scraper import get_twitter_profile, unscrape_twitter_bio
 from profiles.utils.wordcloud import generate_wordcloud
-from .models import Profile, SocialMediaAccount
+from .models import Profile, RawPost, SocialMediaAccount
 from .forms import UsernameSearchForm
 from django.contrib import messages
 from dateutil.parser import parse as parse_date
@@ -19,6 +19,8 @@ from django.db.models import Avg
 from django.db.models.functions import TruncMonth
 from celery.result import AsyncResult
 from django.http import Http404, JsonResponse
+from collections import Counter, defaultdict
+from django.db.models import F
 
 logger = logging.getLogger(__name__)
 
@@ -247,21 +249,102 @@ def profile_dashboard(request, pk):
 
     return render( request, "profiles/dashboard.html", context)
 
+WEEKDAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+WEEKDAY_INDEX = {d: i for i, d in enumerate(WEEKDAYS)}
 
 def behavioral_dashboard(request, username, platform):
-    """Display behavioral analysis dashboard for a specific platform profile."""
-    profile = Profile.objects.filter(username=username, platform=platform).order_by("-date_profiled").first()
-
+    """Platform-specific behavioral dashboard."""
+    profile = (
+        Profile.objects
+        .filter(username=username, platform=platform)
+        .order_by("-date_profiled")
+        .first()
+    )
     if not profile:
-        raise Http404(f"No profile found for username '{username}' on platform '{platform}'")
+        raise Http404(f"No profile found for {username} on {platform}")
 
     social = SocialMediaAccount.objects.filter(profile=profile, platform=platform).first()
     analysis = getattr(profile, "behavior_analysis", None)
 
+    # ----- Raw posts for this profile (platform-specific) -----
+    posts_qs = RawPost.objects.filter(profile=profile, platform=platform).order_by("timestamp")
+    posts = list(posts_qs.values("timestamp", "likes", "comments", "sentiment_score", "content"))
+
+    # ----- Sentiment over time (x: date label, y: score) -----
+    sentiment_labels = []
+    sentiment_values = []
+    for p in posts:
+        if p["timestamp"] and p["sentiment_score"] is not None:
+            sentiment_labels.append(p["timestamp"].strftime("%b %d"))
+            sentiment_values.append(round(p["sentiment_score"], 3))
+
+    # ----- Engagement trend (likes + comments over time) -----
+    engagement_labels = []
+    engagement_values = []
+    for p in posts:
+        if p["timestamp"]:
+            engagement_labels.append(p["timestamp"].strftime("%b %d"))
+            engagement_values.append(int(p.get("likes") or 0) + int(p.get("comments") or 0))
+
+    # ----- Heatmap data: counts by weekday/hour -----
+    # Chart.js matrix expects [{x: hour, y: weekdayIndex, v: count}, ...]
+    heat_counter = Counter()
+    for p in posts:
+        ts = p["timestamp"]
+        if ts:
+            heat_counter[(ts.hour, ts.strftime("%A"))] += 1
+
+    heatmap_data = [
+        {"x": hour, "y": WEEKDAY_INDEX[wd], "v": heat_counter.get((hour, wd), 0)}
+        for wd in WEEKDAYS for hour in range(24)
+    ]
+
+    # ----- Sentiment distribution buckets -----
+    pos = sum(1 for s in sentiment_values if s >  0.1)
+    neg = sum(1 for s in sentiment_values if s < -0.1)
+    neu = max(0, len(sentiment_values) - pos - neg)
+
+    # ----- Network metrics -----
+    followers = int(getattr(social, "followers", 0) or 0) if social else 0
+    following = int(getattr(social, "following", 0) or 0) if social else 0
+    network_size = followers + following
+    influence_score = getattr(analysis, "influence_score", None)
+
+    # ----- Keywords / word cloud -----
+    # Prefer BehavioralAnalysis.top_keywords; fallback to quick extract from posts
+    top_keywords = analysis.top_keywords if analysis and analysis.top_keywords else {}
+    if not top_keywords and posts:
+        import re
+        words = []
+        for p in posts:
+            content = (p["content"] or "").lower()
+            words += re.findall(r"#(\w+)", content)  # hashtags
+            words += re.findall(r"\b[a-zA-Z]{4,}\b", content)
+        freq = Counter(words).most_common(20)
+        top_keywords = {k: v for k, v in freq}
+
+    # Optional: if you already generate a wordcloud image elsewhere, pass it
+    wordcloud_image = None  # base64 string if you have it
+
     context = {
         "profile": profile,
+        "platform": platform,
         "social": social,
         "analysis": analysis,
-        "platform": platform,
+        # summary cards
+        "network_size": network_size,
+        "followers": followers,
+        "following": following,
+        "influence_score": influence_score,
+        # charts data (JSON)
+        "sentiment_pie": json.dumps([pos, neu, neg]),
+        "sentiment_timeline_labels": json.dumps(sentiment_labels),
+        "sentiment_timeline_values": json.dumps(sentiment_values),
+        "engagement_labels": json.dumps(engagement_labels),
+        "engagement_values": json.dumps(engagement_values),
+        "heatmap_data": json.dumps(heatmap_data),
+        # keywords
+        "top_keywords": top_keywords,
+        "wordcloud_image": wordcloud_image,
     }
     return render(request, "profiles/behavioral_dashboard.html", context)

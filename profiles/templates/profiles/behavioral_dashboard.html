@@ -1,160 +1,214 @@
+
 {% extends "pages/base.html" %}
-{% block title %}Behavioral Dashboard - {{ profile.username }}{% endblock %}
+{% block title %}Behavioral Dashboard – {{ profile.username }} ({{ platform }}){% endblock %}
 
 {% block content %}
 <style>
-  body {
-    background-color: #f8f9fa;
-  }
-  .metric-card {
-    border-radius: 15px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-    padding: 1.5rem;
-    text-align: center;
-    transition: all 0.2s ease-in-out;
-  }
-  .metric-card:hover {
-    transform: translateY(-3px);
-  }
-  .metric-value {
-    font-size: 1.8rem;
-    font-weight: bold;
-  }
-  .keyword-badge {
-    margin: 0.3rem;
-    font-size: 0.85rem;
-    border-radius: 12px;
-  }
-  .chart-container {
-    background: white;
-    border-radius: 15px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-    padding: 1rem;
-  }
+  .metric-card{border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.08);padding:1.25rem;text-align:center}
+  .metric-value{font-size:1.6rem;font-weight:700}
+  .chart-wrap{background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.08);padding:1rem}
+  .keyword-badge{margin:.25rem;border-radius:12px;font-size:.85rem}
 </style>
 
 <div class="container py-4">
-  <!-- Back Navigation -->
-  <a href="{% url 'profile_dashboard' profile.pk %}" class="btn btn-outline-secondary mb-4">
-    <i class="bi bi-arrow-left"></i> Back to Dashboard
+  <a href="{% url 'profile_dashboard' profile.pk %}" class="btn btn-outline-secondary mb-3">
+    ← Back to {{ profile.username }}’s Dashboard
   </a>
 
-  <!-- Header -->
   <div class="text-center mb-4">
-    <img src="{{ profile.avatar_url }}" alt="Avatar" class="rounded-circle shadow-sm mb-3" width="120" height="120">
-    <h2 class="fw-bold">{{ profile.username }} — {{ profile.platform }}</h2>
-    <p class="text-muted mb-0">{{ profile.full_name }}</p>
+    <img src="{{ profile.avatar_url }}" class="rounded-circle shadow-sm mb-3" width="110" height="110" alt="avatar">
+    <h3 class="fw-bold mb-0">{{ profile.username }} — {{ platform }}</h3>
+    <div class="text-muted">{{ profile.full_name }}</div>
   </div>
 
   <!-- Summary Cards -->
-  <div class="row g-4 mb-4">
-    <div class="col-md-3">
-      <div class="metric-card bg-primary text-white">
-        <h6>Network Size</h6>
-        <div class="metric-value">{{ analysis.network_size|default:"0" }}</div>
-        <small>Followers + Following</small>
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3"><div class="metric-card bg-primary text-white">
+      <div>Network Size</div><div class="metric-value">{{ network_size|default:"0" }}</div>
+      <small>Followers: {{ followers|default:"0" }} • Following: {{ following|default:"0" }}</small>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="metric-card bg-info text-white">
+      <div>Influence Score</div><div class="metric-value">{{ influence_score|default:"N/A" }}</div>
+      <small>Relative reach</small>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="metric-card bg-success text-white">
+      <div>Avg Sentiment</div>
+      <div class="metric-value">
+        {% if analysis and analysis.sentiment_score is not None %}
+          {{ analysis.sentiment_score|floatformat:2 }}
+        {% else %}N/A{% endif %}
       </div>
-    </div>
-    <div class="col-md-3">
-      <div class="metric-card bg-success text-white">
-        <h6>Influence Score</h6>
-        <div class="metric-value">{{ analysis.influence_score|default:"N/A" }}</div>
-        <small>Relative Social Reach</small>
+      <small>-1 to +1</small>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="metric-card bg-warning text-dark">
+      <div>Activity Pattern</div>
+      <div class="metric-value">
+        {% if analysis and analysis.activity_pattern %}{{ analysis.activity_pattern }}{% else %}N/A{% endif %}
       </div>
-    </div>
-    <div class="col-md-3">
-      <div class="metric-card bg-warning text-dark">
-        <h6>Sentiment</h6>
-        <div class="metric-value">{{ analysis.sentiment_score|floatformat:2 }}</div>
-        <small>Polarity of Bio / Posts</small>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="metric-card bg-info text-white">
-        <h6>Activity Pattern</h6>
-        <div class="metric-value">{{ analysis.activity_pattern|default:"N/A" }}</div>
-        <small>Posting or Contribution Behavior</small>
-      </div>
-    </div>
+      <small>
+        {% if analysis and analysis.avg_post_time %}~{{ analysis.avg_post_time }} • {% endif %}
+        {% if analysis and analysis.most_active_days %}{{ analysis.most_active_days|join:", " }}{% endif %}
+      </small>
+    </div></div>
   </div>
 
-  <!-- Behavioral Insights Section -->
+  <!-- Charts Row -->
   <div class="row g-4">
-    <div class="col-md-6">
-      <div class="chart-container">
-        <h5 class="fw-bold text-center text-secondary mb-3"><i class="bi bi-graph-up"></i> Sentiment Overview</h5>
-        <canvas id="sentimentChart"></canvas>
+    <!-- Sentiment Pie -->
+    <div class="col-md-4">
+      <div class="chart-wrap">
+        <h6 class="text-secondary fw-bold mb-3">Sentiment Distribution</h6>
+        <canvas id="sentimentPie"></canvas>
       </div>
     </div>
 
+    <!-- Activity Heatmap -->
+    <div class="col-md-8">
+      <div class="chart-wrap">
+        <h6 class="text-secondary fw-bold mb-3">Activity Heatmap (Weekday × Hour)</h6>
+        <canvas id="activityHeatmap"></canvas>
+        <small class="text-muted d-block mt-2">Darker = more posts</small>
+      </div>
+    </div>
+
+    <!-- Sentiment Timeline -->
     <div class="col-md-6">
-      <div class="chart-container">
-        <h5 class="fw-bold text-center text-secondary mb-3"><i class="bi bi-person-lines-fill"></i> Influence Breakdown</h5>
-        <canvas id="influenceChart"></canvas>
+      <div class="chart-wrap">
+        <h6 class="text-secondary fw-bold mb-3">Sentiment Over Time</h6>
+        <canvas id="sentimentLine"></canvas>
+      </div>
+    </div>
+
+    <!-- Engagement Trend -->
+    <div class="col-md-6">
+      <div class="chart-wrap">
+        <h6 class="text-secondary fw-bold mb-3">Engagement Trend (Likes + Comments)</h6>
+        <canvas id="engagementLine"></canvas>
       </div>
     </div>
   </div>
 
-  <!-- Keywords & Interests -->
-  <div class="chart-container mt-4">
-    <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-tags"></i> Top Keywords & Interests</h5>
-    {% if analysis.top_keywords %}
-      <div class="d-flex flex-wrap">
-        {% for key, value in analysis.top_keywords.items %}
-          <span class="badge bg-dark keyword-badge">{{ key }} ({{ value }})</span>
-        {% endfor %}
+  <!-- Keywords / Word Cloud -->
+  <div class="row g-4 mt-1">
+    <div class="col-md-6">
+      <div class="chart-wrap">
+        <h6 class="text-secondary fw-bold mb-3">Top Keywords & Hashtags</h6>
+        {% if top_keywords %}
+          <div class="d-flex flex-wrap">
+            {% for k,v in top_keywords.items %}
+              <span class="badge bg-dark keyword-badge">#{{ k }} ({{ v }})</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">No keywords identified yet.</p>
+        {% endif %}
       </div>
-    {% else %}
-      <p class="text-muted">No keywords identified yet.</p>
-    {% endif %}
-  </div>
+    </div>
 
-  <!-- Geolocation -->
-  <div class="chart-container mt-4">
-    <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-geo-alt"></i> Geolocation</h5>
-    {% if analysis.geo_locations %}
-      <p class="mb-0">{{ analysis.geo_locations|join:", " }}</p>
-    {% else %}
-      <p class="text-muted">No location data available.</p>
-    {% endif %}
+    <div class="col-md-6">
+      <div class="chart-wrap">
+        <h6 class="text-secondary fw-bold mb-3">Word Cloud</h6>
+        {% if wordcloud_image %}
+          <img class="img-fluid rounded border" alt="word cloud" src="data:image/png;base64,{{ wordcloud_image }}">
+        {% else %}
+          <p class="text-muted mb-0">Word cloud not generated yet.</p>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Chart.js -->
+<!-- Chart.js + Matrix plugin (for heatmap) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
 <script>
-  // Sentiment Chart
-  const sentimentCtx = document.getElementById('sentimentChart');
-  new Chart(sentimentCtx, {
+  const WEEKDAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
+  // Sentiment Pie
+  const pieCtx = document.getElementById('sentimentPie');
+  const pieData = {{ sentiment_pie|safe }}; // [pos, neu, neg]
+  new Chart(pieCtx, {
     type: 'doughnut',
     data: {
-      labels: ['Positive', 'Neutral', 'Negative'],
-      datasets: [{
-        data: [
-          {{ analysis.sentiment_score|default:0|floatformat:2 }} > 0 ? {{ analysis.sentiment_score|floatformat:2 }} : 0,
-          1 - Math.abs({{ analysis.sentiment_score|default:0|floatformat:2 }}),
-          {{ analysis.sentiment_score|default:0|floatformat:2 }} < 0 ? Math.abs({{ analysis.sentiment_score|floatformat:2 }}) : 0
-        ],
-        backgroundColor: ['#28a745', '#6c757d', '#dc3545'],
-      }]
+      labels: ['Positive','Neutral','Negative'],
+      datasets: [{ data: pieData, backgroundColor: ['#28a745','#6c757d','#dc3545'] }]
     },
-    options: { plugins: { legend: { position: 'bottom' } } }
+    options: { plugins: { legend: { position:'bottom' } } }
   });
 
-  // Influence Chart
-  const influenceCtx = document.getElementById('influenceChart');
-  new Chart(influenceCtx, {
-    type: 'bar',
+  // Activity Heatmap (Chart.js matrix)
+  const heatCtx = document.getElementById('activityHeatmap');
+  const heatData = {{ heatmap_data|safe }};
+  const heatMap = new Chart(heatCtx, {
+    type: 'matrix',
     data: {
-      labels: ['Network Size', 'Influence Score'],
       datasets: [{
-        label: 'Metrics',
-        data: [{{ analysis.network_size|default:0 }}, {{ analysis.influence_score|default:0 }}],
-        backgroundColor: ['#17a2b8', '#20c997']
+        label: 'Posts',
+        data: heatData,
+        width: ({chart}) => (chart.chartArea.width / 24) - 2,
+        height: ({chart}) => (chart.chartArea.height / 7) - 2,
+        backgroundColor: ctx => {
+          const v = ctx.raw.v || 0;
+          // simple alpha scale
+          const alpha = Math.min(0.1 + v / 8, 0.95);
+          return `rgba(13,110,253,${alpha})`; // bootstrap primary
+        },
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+      }]
+    },
+    options: {
+      scales: {
+        x: { type: 'linear', min: 0, max: 23, ticks: { stepSize: 1 }, title: { display: true, text: 'Hour (0–23)'} },
+        y: { type: 'linear', min: 0, max: 6, ticks: {
+          stepSize: 1,
+          callback: (v) => WEEKDAYS[v] || v
+        }}
+      },
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        title: items => {
+          const d = items[0].raw;
+          return `${WEEKDAYS[d.y]} @ ${d.x}:00`;
+        },
+        label: item => `Posts: ${item.raw.v}`
+      }}}
+    }
+  });
+
+  // Sentiment Timeline
+  const sLine = document.getElementById('sentimentLine');
+  new Chart(sLine, {
+    type: 'line',
+    data: {
+      labels: {{ sentiment_timeline_labels|safe }},
+      datasets: [{
+        label: 'Sentiment',
+        data: {{ sentiment_timeline_values|safe }},
+        borderColor: '#0d6efd',
+        pointBackgroundColor: '#0d6efd',
+        fill: false,
+        tension: 0.35
+      }]
+    },
+    options: { scales: { y: { min: -1, max: 1 } }, plugins: { legend: { display: false } } }
+  });
+
+  // Engagement Trend
+  const eLine = document.getElementById('engagementLine');
+  new Chart(eLine, {
+    type: 'line',
+    data: {
+      labels: {{ engagement_labels|safe }},
+      datasets: [{
+        label: 'Likes + Comments',
+        data: {{ engagement_values|safe }},
+        borderColor: '#20c997',
+        pointBackgroundColor: '#20c997',
+        fill: false,
+        tension: 0.35
       }]
     },
     options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
   });
 </script>
-
 {% endblock %}
