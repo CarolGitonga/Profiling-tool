@@ -16,6 +16,7 @@ import environ
 import dj_database_url
 import socket
 from kombu import Queue
+SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", "")
 
 TWITTER_API_KEY = config('TWITTER_API_KEY')
 TWITTER_API_SECRET = config('TWITTER_API_SECRET', default=None)
