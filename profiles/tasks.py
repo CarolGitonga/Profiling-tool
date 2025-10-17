@@ -232,12 +232,12 @@ def perform_behavioral_analysis(self, profile_id):
 
             # --- Save GitHub Analysis ---
             analysis.avg_post_time = "N/A"  # not applicable for GitHub
-            analysis.most_active_days = ["Varies"]  # GitHub data doesn’t include weekdays here
+            analysis.most_active_days = ["Varies"]
             analysis.sentiment_score = sentiment_score
             analysis.top_keywords = keyword_freq
             analysis.geo_locations = [profile.location or "Unknown"]
             analysis.network_size = followers + following
-            analysis.influence_score = influence_score  # optional new field if added to model
+            analysis.influence_score = influence_score
             analysis.activity_pattern = activity_pattern
             analysis.analyzed_at = timezone.now()
             analysis.save()
@@ -259,75 +259,85 @@ def perform_behavioral_analysis(self, profile_id):
             avg_post_time = None
             most_active_days = []
 
-         # --- Sentiment Analysis ---         
+        # --- Sentiment Analysis ---
         sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
         sentiments = []
         captions = list(posts_qs.values_list("content", flat=True)) if posts_qs.exists() else []
         used_scrapingbee = False
 
+        # 🧩 Fallback: Use ScrapingBee to get captions if no RawPosts available
         if profile.platform == "Instagram" and not captions:
             used_scrapingbee = True
             captions = scrape_instagram_posts_scrapingbee(profile.username, max_posts=10)
+
+        # --- Analyze Captions ---
         for item in captions:
-                if isinstance(item, (list, tuple)) and len(item) == 2:
-                    caption, sentiment = item
-                else:
-                    sentiment = round(TextBlob(caption).sentiment.polarity, 2)
-                sentiments.append(sentiment)
-                    
-                
-                if sentiment > 0.05:
-                    sentiment_distribution["positive"] += 1
-                elif sentiment < -0.05:
-                    sentiment_distribution["negative"] += 1
-                else:
-                    sentiment_distribution["neutral"] += 1
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                caption, sentiment = item
+            else:
+                caption = str(item)
+                sentiment = round(TextBlob(caption).sentiment.polarity, 2)
 
-                RawPost.objects.update_or_create(
-                    profile=profile,
-                    content=caption[:500],
-                    platform="Instagram",
-                    defaults={
-                        "sentiment_score": sentiment,
-                        "timestamp": timezone.now(),
-                        },
-                    )
+            sentiments.append(sentiment)
 
-                sentiment_score = round(
-                    (sentiment_distribution["positive"] - sentiment_distribution["negative"])
-                    / max(1, sum(sentiment_distribution.values())),
-                    2,
-                )
+            # --- Sentiment distribution counters ---
+            if sentiment > 0.05:
+                sentiment_distribution["positive"] += 1
+            elif sentiment < -0.05:
+                sentiment_distribution["negative"] += 1
+            else:
+                sentiment_distribution["neutral"] += 1
 
-            # --- Keyword Extraction ---
-            hashtags = re.findall(r"#(\w+)", text_data)
-            words = re.findall(r"\b[a-zA-Z]{4,}\b", text_data.lower())
-            all_keywords = hashtags + words
-            keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
-            # --- Network Size ---
-            sm = SocialMediaAccount.objects.filter(profile=profile).first()
-            network_size = (sm.followers + sm.following) if sm else 0
+            # --- Save or update RawPost (for ScrapingBee fallback) ---
+            RawPost.objects.update_or_create(
+                profile=profile,
+                content=caption[:500],
+                platform="Instagram",
+                defaults={
+                    "sentiment_score": sentiment,
+                    "timestamp": timezone.now(),
+                },
+            )
 
-            # --- Geolocation ---
-            geo_locations = []
-            if sm and sm.bio:
-               if "nairobi" in sm.bio.lower(): geo_locations.append("Nairobi")
-               if "kenya" in sm.bio.lower(): geo_locations.append("Kenya")
+        # --- Compute aggregate sentiment score ---
+        sentiment_score = round(
+            (sentiment_distribution["positive"] - sentiment_distribution["negative"])
+            / max(1, sum(sentiment_distribution.values())),
+            2,
+        )
 
-            
+        # --- Keyword Extraction ---
+        hashtags = re.findall(r"#(\w+)", text_data)
+        words = re.findall(r"\b[a-zA-Z]{4,}\b", text_data.lower())
+        all_keywords = hashtags + words
+        keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
 
-            # --- Save Generic Analysis ---
-            analysis.avg_post_time = avg_post_time
-            analysis.most_active_days = most_active_days
-            analysis.sentiment_score = sentiment_score
-            analysis.top_keywords = keyword_freq
-            analysis.geo_locations = geo_locations
-            analysis.network_size = network_size
-            analysis.analyzed_at = timezone.now()
-            analysis.save()
+        # --- Network Size ---
+        sm = SocialMediaAccount.objects.filter(profile=profile).first()
+        network_size = (sm.followers + sm.following) if sm else 0
 
-            logger.info(f"✅ Behavioral analysis completed for {profile.username}")
-            return {"success": True, "profile": profile.username}
+        # --- Geolocation ---
+        geo_locations = []
+        if sm and sm.bio:
+            if "nairobi" in sm.bio.lower():
+                geo_locations.append("Nairobi")
+            if "kenya" in sm.bio.lower():
+                geo_locations.append("Kenya")
+
+        # --- Save Generic Analysis ---
+        analysis.avg_post_time = avg_post_time
+        analysis.most_active_days = most_active_days
+        analysis.sentiment_score = sentiment_score
+        analysis.top_keywords = keyword_freq
+        analysis.geo_locations = geo_locations
+        analysis.network_size = network_size
+        analysis.sentiment_distribution = sentiment_distribution  # optional JSONField
+        analysis.used_scrapingbee = used_scrapingbee
+        analysis.analyzed_at = timezone.now()
+        analysis.save()
+
+        logger.info(f"✅ Behavioral analysis completed for {profile.username}")
+        return {"success": True, "profile": profile.username}
 
     except Exception as e:
         logger.exception(f"Behavioral analysis failed for profile {profile_id}: {e}")
