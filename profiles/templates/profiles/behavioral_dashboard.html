@@ -230,10 +230,10 @@
   new Chart(document.getElementById('engagementLine'), {
     type: 'line',
     data: {
-      labels: {{ engagement_labels|default:"[]"|safe }},
+      labels: {{ engagement_labels|safe }},
       datasets: [{
         label: 'Likes + Comments',
-        data: {{ engagement_values|default:"[]"|safe }},
+        data: {{ engagement_values|safe }},
         borderColor: '#20c997',
         pointBackgroundColor: '#20c997',
         fill: false,

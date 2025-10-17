@@ -279,12 +279,14 @@ def behavioral_dashboard(request, username, platform):
             sentiment_values.append(round(p["sentiment_score"], 3))
 
     # ----- Engagement trend (likes + comments over time) -----
-    engagement_labels = []
-    engagement_values = []
+    engagement_labels, engagement_values = [], []
     for p in posts:
         if p["timestamp"]:
             engagement_labels.append(p["timestamp"].strftime("%b %d"))
-            engagement_values.append(int(p.get("likes") or 0) + int(p.get("comments") or 0))
+            likes = int(p.get("likes") or 0)
+            comments = int(p.get("comments") or 0)
+            engagement_values.append(likes + comments)
+             
 
     # ----- Heatmap data: counts by weekday/hour -----
     # Chart.js matrix expects [{x: hour, y: weekdayIndex, v: count}, ...]
