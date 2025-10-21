@@ -9,10 +9,15 @@ def generate_wordcloud(text: str):
     """
     # Create wordcloud
     wc = WordCloud(
-        width=600, height=400,
+        width=700,
+        height=400,
         background_color="white",
         colormap="viridis",
-        max_words=100
+        max_words=120,
+        min_font_size=8,       # smaller minimum font
+        max_font_size=60,      #limit largest word size
+        prefer_horizontal=0.9, #mostly horizontal layout
+        scale=2,
     ).generate(text)
 
     # Convert to PNG in memory
