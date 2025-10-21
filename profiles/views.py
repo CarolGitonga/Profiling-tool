@@ -21,6 +21,8 @@ from celery.result import AsyncResult
 from django.http import Http404, JsonResponse
 from collections import Counter, defaultdict
 from django.db.models import F
+from profiles.utils.wordcloud import generate_wordcloud  # or adjust path if it's in another utils file
+
 
 logger = logging.getLogger(__name__)
 
@@ -324,9 +326,21 @@ def behavioral_dashboard(request, username, platform):
             words += re.findall(r"\b[a-zA-Z]{4,}\b", content)
         freq = Counter(words).most_common(20)
         top_keywords = {k: v for k, v in freq}
+    # ---- 9. Word cloud generation ----
+    captions = [p.get("content", "") for p in posts if p.get("content")]
+    bios = [
+        s.bio for s in SocialMediaAccount.objects.filter(profile=profile)
+        if s.bio
+    ]
+    weighted_keywords = []
+    if top_keywords:
+        for k, v in top_keywords.items():
+            weighted_keywords.append((k + " ") * max(int(v), 1))
 
-    # Optional: if you already generate a wordcloud image elsewhere, pass it
-    wordcloud_image = None  # base64 string if you have it
+    combined_text = " ".join(captions + bios + weighted_keywords)
+    wordcloud_image = generate_wordcloud(combined_text) if combined_text.strip() else None
+
+   
 
     context = {
         "profile": profile,
