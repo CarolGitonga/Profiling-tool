@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
     """
-    Fetch Instagram posts via ScrapingBee (as fallback for Instaloader).
-    Uses stealth proxy retry if login redirect is detected.
+    Fetch Instagram posts using ScrapingBee with auto fallback chain:
+    → Normal → Premium Proxy → Stealth Proxy.
     Saves captions, likes, comments, and sentiment into RawPost.
     """
     api_key = getattr(settings, "SCRAPINGBEE_API_KEY", None)
@@ -21,41 +21,54 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
     proxy_url = "https://app.scrapingbee.com/api/v1/"
     target_url = f"https://www.instagram.com/{username}/"
 
+    # --- Base parameters ---
     params = {
         "api_key": api_key,
         "url": target_url,
         "render_js": "true",
+        "block_resources": "false",
         "wait": "5000",
-        "block_resources": "false"
     }
 
+    response = None
+    captions = []
+
     try:
-        # --- Initial request ---
-        response = requests.get(proxy_url, params=params, timeout=60)
+        # ========== STAGE 1: NORMAL REQUEST ==========
         try:
+            logger.info(f"🌐 Fetching {username} (Stage 1: normal)...")
+            response = requests.get(proxy_url, params=params, timeout=60)
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            # 🔁 Retry automatically if login page or 500 error detected
             if "Redirected to login" in str(e) or getattr(response, "status_code", 0) == 500:
-                logger.warning(f"🔁 Retrying {username} with stealth proxy (login redirect detected)...")
-                params["stealth_proxy"] = "true"
-                params["wait"] = "7000"
-                response = requests.get(proxy_url, params=params, timeout=60)
+                # ========== STAGE 2: PREMIUM PROXY RETRY ==========
+                logger.warning(f"🔁 Retrying {username} with premium proxy (Stage 2)...")
+                params["premium_proxy"] = "true"
+                params["wait"] = "8000"
+                response = requests.get(proxy_url, params=params, timeout=90)
                 response.raise_for_status()
             else:
-                raise  # propagate other HTTP errors
+                raise
 
-        # --- Parse the HTML ---
+        # If still login blocked or 500 error → escalate to stealth proxy
+        if "login" in response.text.lower() or response.status_code == 500:
+            # ========== STAGE 3: STEALTH PROXY RETRY ==========
+            logger.warning(f"🕵️ Retrying {username} with stealth proxy (Stage 3)...")
+            params.pop("premium_proxy", None)
+            params["stealth_proxy"] = "true"
+            params["wait"] = "10000"
+            response = requests.get(proxy_url, params=params, timeout=120)
+            response.raise_for_status()
+
+        # --- Parse HTML response ---
         soup = BeautifulSoup(response.text, "html.parser")
-
-        # Prefer __NEXT_DATA__ if available
-        script_tag = soup.find("script", id="__NEXT_DATA__")
-        captions = []
         db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
         if not db_profile:
-            logger.warning(f"⚠️ No Profile found for {username}.")
+            logger.warning(f"⚠️ No Profile found for {username}. Skipping save.")
             return []
 
+        # --- Option 1: __NEXT_DATA__ JSON (preferred) ---
+        script_tag = soup.find("script", id="__NEXT_DATA__")
         if script_tag:
             try:
                 data = json.loads(script_tag.string)
@@ -93,13 +106,13 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
                     )
                     captions.append((caption, sentiment))
 
-                logger.info(f"✅ Saved {len(captions)} posts for {username} via ScrapingBee (__NEXT_DATA__).")
+                logger.info(f"✅ Saved {len(captions)} posts for {username} via __NEXT_DATA__.")
                 return captions
 
             except Exception as e:
                 logger.warning(f"⚠️ Failed to parse __NEXT_DATA__ JSON for {username}: {e}")
 
-        # --- Fallback: Look for <script type="application/ld+json"> ---
+        # --- Option 2: Fallback to <script type="application/ld+json"> ---
         json_scripts = soup.find_all("script", type="application/ld+json")
         for js in json_scripts[:max_posts]:
             text = js.get_text(strip=True)
@@ -131,7 +144,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         if captions:
             logger.info(f"✅ Saved {len(captions)} posts for {username} via fallback JSON.")
         else:
-            logger.warning(f"❌ No post data found for {username} (even after stealth retry).")
+            logger.warning(f"❌ No post data found for {username}, even after stealth retry.")
 
         return captions
 
