@@ -26,6 +26,8 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         "url": target_url,
         "render_js": "true",
         "wait": "8000",
+        "stealth_proxy": "true",  # 👈 bypass Instagram login redirects
+        "block_resources": "false"
     }
 
     try:
