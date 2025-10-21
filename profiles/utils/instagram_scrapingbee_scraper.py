@@ -25,7 +25,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         "api_key": api_key,
         "url": target_url,
         "render_js": "true",
-        "wait": "3000",
+        "wait": "8000",
     }
 
     try:
@@ -72,9 +72,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
             likes = node.get("edge_liked_by", {}).get("count", 0)
             comments = node.get("edge_media_to_comment", {}).get("count", 0)
             timestamp = timezone.now()
-
             sentiment = round(TextBlob(caption).sentiment.polarity, 2)
-
 
             RawPost.objects.update_or_create(
                 profile=db_profile,
