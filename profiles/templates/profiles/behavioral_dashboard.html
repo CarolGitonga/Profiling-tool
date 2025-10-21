@@ -16,7 +16,16 @@
     border-radius: 16px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     padding: 1rem;
+    min-height: 220px; /* matches hashtag card */
   }
+
+  .chart-wrap img {
+  transition: transform 0.2s ease-in-out;
+}
+
+.chart-wrap img:hover {
+  transform: scale(1.03);
+}
   .keyword-badge {
     margin: .25rem;
     border-radius: 12px;
@@ -139,19 +148,19 @@
       </div>
     </div>
 <!-- Word Cloud -->
-<div class="col-md-6 col-lg-4">
-  <div class="chart-wrap h-100 text-center">
-    <h6 class="text-secondary fw-bold mb-3">
-      <i class="bi bi-cloud"></i> Word Cloud
-    </h6>
-    {% if wordcloud_image %}
-      <img src="data:image/png;base64,{{ wordcloud_image }}" 
-           alt="Word Cloud" 
-           class="img-fluid rounded shadow-sm"
-           style="max-height: 250px; width: 100%; object-fit: contain; background: #fff; padding: .5rem; border-radius: 12px;">
-    {% else %}
-      <p class="text-muted mb-0">Word cloud not generated yet.</p>
-    {% endif %}
+<div class="col-md-6 col-lg-6">
+  <div class="chart-wrap h-100 d-flex flex-column justify-content-between">
+    <h6 class="text-secondary fw-bold mb-3">Word Cloud</h6>
+    <div class="d-flex justify-content-center align-items-center flex-grow-1">
+      {% if wordcloud_image %}
+        <img src="data:image/png;base64,{{ wordcloud_image }}" 
+             alt="Word Cloud" 
+             class="img-fluid rounded shadow-sm"
+             style="width: 90%; max-height: 220px; object-fit: contain; background: #fff; padding: .75rem; border-radius: 14px;">
+      {% else %}
+        <p class="text-muted mb-0">Word cloud not generated yet.</p>
+      {% endif %}
+    </div>
   </div>
 </div>
 
