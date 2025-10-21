@@ -140,21 +140,25 @@
     </div>
 
     <!-- Word Cloud -->
-    {% if wordcloud_image %}
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-primary text-white fw-bold text-center py-2">
-                <i class="bi bi-cloud"></i> Word Cloud
-            </div>
-            <div class="card-body d-flex justify-content-center align-items-center" 
-                 style="min-height: 180px; background: #f9fafc;">
-                <img src="data:image/png;base64,{{ wordcloud_image }}" 
-                     alt="Word Cloud" 
-                     class="img-fluid rounded border p-1 shadow-sm"
-                     style="max-height: 180px; object-fit: contain;">
-            </div>
-        </div>
+<div class="col-md-6 col-lg-4">
+  <div class="card shadow-sm h-100">
+    <div class="card-header bg-primary text-white fw-bold text-center py-2">
+      <i class="bi bi-cloud"></i> Word Cloud
     </div>
+    <div class="card-body d-flex justify-content-center align-items-center" 
+         style="min-height: 180px; background: #f9fafc;">
+      {% if wordcloud_image %}
+        <img src="data:image/png;base64,{{ wordcloud_image }}" 
+             alt="Word Cloud" 
+             class="img-fluid rounded border p-1 shadow-sm"
+             style="max-height: 180px; object-fit: contain;">
+      {% else %}
+        <p class="text-muted mb-0">Word cloud not generated yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 
   </div>
 </div>
