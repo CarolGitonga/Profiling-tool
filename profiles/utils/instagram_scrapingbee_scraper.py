@@ -4,6 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from profiles.models import Profile, RawPost
 from textblob import TextBlob
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         logger.error("SCRAPINGBEE_API_KEY not set in settings.py")
         return []
 
-    url = f"https://app.scrapingbee.com/api/v1/"
+    proxy_url = f"https://app.scrapingbee.com/api/v1/"
     target_url = f"https://www.instagram.com/{username}/"
 
     params = {
@@ -28,34 +29,52 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
     }
 
     try:
-        response = requests.get(url, params=params, timeout=45)
+        response = requests.get(proxy_url, params=params, timeout=60)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Extract JSON inside <script type="application/ld+json">
-        json_scripts = soup.find_all("script", type="application/ld+json")
-        captions = []
-        db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
+       # ✅ Extract JSON inside <script id="__NEXT_DATA__">
+        script_tag = soup.find("script", {"id": "__NEXT_DATA__"})
+        if not script_tag:
+            logger.warning(f"No __NEXT_DATA__ found for {username}")
+            return []
+        
+        raw_json = script_tag.string or script_tag.text
+        data = json.loads(raw_json)
 
+        # Navigate to the user's post data
+        posts_data = (
+            data.get("props", {})
+                .get("pageProps", {})
+                .get("graphql", {})
+                .get("user", {})
+                .get("edge_owner_to_timeline_media", {})
+                .get("edges", [])
+        )
+        if not posts_data:
+            logger.warning(f"No posts found in __NEXT_DATA__ for {username}")
+            return []
+        
+        db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
         if not db_profile:
-            logger.warning(f"No Profile found for {username}.")
+            logger.warning(f"No Profile object found for {username}.")
             return []
 
-        for js in json_scripts[:max_posts]:
-            text = js.get_text(strip=True)
-            if not text:
-                continue
-
-            # Try to extract caption, likes, comments
-            caption_match = re.search(r'"caption":"(.*?)"', text)
-            likes_match = re.search(r'"interactionCount":(\d+)', text)
-            comments_match = re.search(r'"commentCount":(\d+)', text)
-
-            caption = caption_match.group(1) if caption_match else ""
-            likes = int(likes_match.group(1)) if likes_match else 0
-            comments = int(comments_match.group(1)) if comments_match else 0
+        results = []
+        for edge in posts_data[:max_posts]:
+            node = edge.get("node", {})
+            caption = (
+                node.get("edge_media_to_caption", {})
+                .get("edges", [{}])[0]
+                .get("node", {})
+                .get("text", "")
+            )
+            likes = node.get("edge_liked_by", {}).get("count", 0)
+            comments = node.get("edge_media_to_comment", {}).get("count", 0)
+            timestamp = timezone.now()
 
             sentiment = round(TextBlob(caption).sentiment.polarity, 2)
+
 
             RawPost.objects.update_or_create(
                 profile=db_profile,
@@ -65,15 +84,15 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
                     "likes": likes,
                     "comments": comments,
                     "sentiment_score": sentiment,
-                    "timestamp": timezone.now(),
+                    "timestamp": timestamp,
                 },
             )
+            results.append((caption, sentiment))
 
-            captions.append((caption, sentiment))
-
-        logger.info(f"✅ Saved {len(captions)} posts for {username} via ScrapingBee")
-        return captions
+    
+        logger.info(f"✅ Saved {len(results)} posts for {username} via ScrapingBee (__NEXT_DATA__).")
+        return results
 
     except Exception as e:
-        logger.exception(f"ScrapingBee fetch failed for {username}: {e}")
+        logger.exception(f"ScrapingBee Instagram scrape failed for {username}: {e}")
         return []
