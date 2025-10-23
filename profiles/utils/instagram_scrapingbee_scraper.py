@@ -15,7 +15,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
     """
     api_key = getattr(settings, "SCRAPINGBEE_API_KEY", None)
     if not api_key:
-        logger.error("❌ SCRAPINGBEE_API_KEY not set in settings.py")
+        logger.error(" SCRAPINGBEE_API_KEY not set in settings.py")
         return []
 
     proxy_url = "https://app.scrapingbee.com/api/v1/"
@@ -34,15 +34,15 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
     captions = []
 
     try:
-        # ========== STAGE 1: NORMAL REQUEST ==========
+        # NORMAL REQUEST
         try:
-            logger.info(f"🌐 Fetching {username} (Stage 1: normal)...")
+            logger.info(f"Fetching {username} (Stage 1: normal)...")
             response = requests.get(proxy_url, params=params, timeout=60)
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
             if "Redirected to login" in str(e) or getattr(response, "status_code", 0) == 500:
-                # ========== STAGE 2: PREMIUM PROXY RETRY ==========
-                logger.warning(f"🔁 Retrying {username} with premium proxy (Stage 2)...")
+                # PREMIUM PROXY RETRY
+                logger.warning(f"Retrying {username} with premium proxy (Stage 2)...")
                 params["premium_proxy"] = "true"
                 params["wait"] = "8000"
                 response = requests.get(proxy_url, params=params, timeout=90)
@@ -52,7 +52,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
 
         # If still login blocked or 500 error → escalate to stealth proxy
         if "login" in response.text.lower() or response.status_code == 500:
-            # ========== STAGE 3: STEALTH PROXY RETRY ==========
+            # STEALTH PROXY RETRY
             logger.warning(f"🕵️ Retrying {username} with stealth proxy (Stage 3)...")
             params.pop("premium_proxy", None)
             params["stealth_proxy"] = "true"
@@ -64,10 +64,10 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         soup = BeautifulSoup(response.text, "html.parser")
         db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
         if not db_profile:
-            logger.warning(f"⚠️ No Profile found for {username}. Skipping save.")
+            logger.warning(f"No Profile found for {username}. Skipping save.")
             return []
 
-        # --- Option 1: __NEXT_DATA__ JSON (preferred) ---
+        # 1: __NEXT_DATA__ JSON
         script_tag = soup.find("script", id="__NEXT_DATA__")
         if script_tag:
             try:
@@ -112,7 +112,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
             except Exception as e:
                 logger.warning(f"⚠️ Failed to parse __NEXT_DATA__ JSON for {username}: {e}")
 
-        # --- Option 2: Fallback to <script type="application/ld+json"> ---
+        # 2: Fallback to <script type="application/ld+json">
         json_scripts = soup.find_all("script", type="application/ld+json")
         for js in json_scripts[:max_posts]:
             text = js.get_text(strip=True)
@@ -142,12 +142,12 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
             captions.append((caption, sentiment))
 
         if captions:
-            logger.info(f"✅ Saved {len(captions)} posts for {username} via fallback JSON.")
+            logger.info(f"Saved {len(captions)} posts for {username} via fallback JSON.")
         else:
-            logger.warning(f"❌ No post data found for {username}, even after stealth retry.")
+            logger.warning(f"No post data found for {username}, even after stealth retry.")
 
         return captions
 
     except Exception as e:
-        logger.exception(f"💥 ScrapingBee fetch failed for {username}: {e}")
+        logger.exception(f"ScrapingBee fetch failed for {username}: {e}")
         return []

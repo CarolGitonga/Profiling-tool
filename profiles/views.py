@@ -1,5 +1,3 @@
-
-# user-facing logic (form handling, enqueue Celery tasks, render templates)
 import json
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
@@ -21,11 +19,9 @@ from celery.result import AsyncResult
 from django.http import Http404, JsonResponse
 from collections import Counter, defaultdict
 from django.db.models import F
-from profiles.utils.wordcloud import generate_wordcloud  # or adjust path if it's in another utils file
-
+from profiles.utils.wordcloud import generate_wordcloud 
 
 logger = logging.getLogger(__name__)
-
 
 def search_profile(request):
     if request.method == "POST":
@@ -34,8 +30,6 @@ def search_profile(request):
             username = form.cleaned_data["username"].strip()
             platform = form.cleaned_data["platform"]
             
-
-
             # --- TWITTER (sync) ---
             if platform == "Twitter":
                 twitter_data = get_twitter_profile(username)
@@ -104,7 +98,7 @@ def search_profile(request):
                 profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
                 # Send to the correct Celery queue
                 result = scrape_instagram_task.apply_async(args=[username], queue="instagram")
-                print(f"📤 Sent Instagram scrape task for {username}, task ID: {result.id}")
+                print(f" Sent Instagram scrape task for {username}, task ID: {result.id}")
 
                 messages.info(request, f"Instagram profile for {username} is being scraped in the background.")
                 return redirect("profile_dashboard", pk=profile.pk)
@@ -121,7 +115,6 @@ def search_profile(request):
                 profile, _ = Profile.objects.get_or_create(username=username, platform="Sherlock")
                 # call your Sherlock runner (could be sync or async)
                 sherlock_results = run_sherlock(username)
-                
 
                 # save minimal info into SocialMediaAccount or a related model
                 SocialMediaAccount.objects.update_or_create(
@@ -148,7 +141,6 @@ def delete_twitter_data(request, username):
     else:
         messages.error(request, "Profile not found or already removed.")
     return redirect("search_profile")
-
 
 
 def task_status(request, task_id):
@@ -190,7 +182,6 @@ def profile_dashboard(request, pk):
     accounts = SocialMediaAccount.objects.filter(profile=profile)
     sherlock_results = []
     wordcloud_image = None
-     # Sherlock profile → use sherlock_results text
     if profile.platform == "Sherlock":
         sherlock_results = request.session.get("sherlock_results", [])
         text_data = " ".join([res["platform"] for res in sherlock_results])
@@ -240,7 +231,7 @@ def profile_dashboard(request, pk):
         "accounts": accounts,
         "sherlock_results": sherlock_results,
         "wordcloud_image": wordcloud_image,
-        "chart_labels": json.dumps(chart_labels),  # pass as JSON-safe
+        "chart_labels": json.dumps(chart_labels), 
         "chart_data": json.dumps(chart_data),
         "bar_labels": json.dumps(bar_labels),
         "bar_data": json.dumps(bar_data),
@@ -315,7 +306,6 @@ def behavioral_dashboard(request, username, platform):
     influence_score = getattr(analysis, "influence_score", None)
 
     # ----- Keywords / word cloud -----
-    # Prefer BehavioralAnalysis.top_keywords; fallback to quick extract from posts
     top_keywords = analysis.top_keywords if analysis and analysis.top_keywords else {}
     if not top_keywords and posts:
         import re
@@ -339,8 +329,6 @@ def behavioral_dashboard(request, username, platform):
 
     combined_text = " ".join(captions + bios + weighted_keywords)
     wordcloud_image = generate_wordcloud(combined_text) if combined_text.strip() else None
-
-   
 
     context = {
         "profile": profile,

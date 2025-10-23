@@ -9,7 +9,7 @@ from profiles.models import Profile, SocialMediaAccount
 
 logger = logging.getLogger(__name__)
 
-# ✅ Load API key from environment or settings
+# Load API key from environment or settings
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 
 
@@ -29,8 +29,8 @@ def _fetch_tiktok_info(username: str):
             target_url,
             params={
                 "render_js": "true",
-                "wait": "8000",                # ⏱ longer wait
-                "stealth_proxy": "true",       # 🕵️ bypass detection
+                "wait": "8000",                # longer wait
+                "stealth_proxy": "true",       #  bypass detection
                 "block_resources": "false",
                 "premium_proxy": "true",
             },
@@ -48,7 +48,7 @@ def _fetch_tiktok_info(username: str):
         logger.exception(f"ScrapingBee request failed for {username}")
         return {"error": f"ScrapingBee request failed: {e}"}
 
-    # ✅ Extract embedded JSON
+    # Extract embedded JSON
     match = re.search(r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', html)
     if not match:
         match = re.search(r'<script id="SIGI_STATE"[^>]*>(.*?)</script>', html)
@@ -64,7 +64,7 @@ def _fetch_tiktok_info(username: str):
         logger.exception(f"Failed to parse TikTok JSON for {username}")
         return {"error": f"Failed to parse TikTok JSON: {e}"}
 
-    # ✅ Extract user info
+    # Extract user info
     try:
         user_info = (
             data.get("__DEFAULT_SCOPE__", {})
@@ -85,7 +85,7 @@ def _fetch_tiktok_info(username: str):
         if not user:
             return {"error": f"No user data found for {username}"}
 
-        # ✅ Extract posts (ItemModule)
+        # Extract posts (ItemModule)
         posts_data = []
         if "ItemModule" in data:
             for vid_id, vid in list(data["ItemModule"].items())[:10]:
@@ -105,7 +105,7 @@ def _fetch_tiktok_info(username: str):
                     "timestamp": timestamp,
                 })
         if not posts_data:
-            logger.warning(f"⚠️ No TikTok posts found for {username} (ItemModule empty).")
+            logger.warning(f" No TikTok posts found for {username} (ItemModule empty).")
 
         return {
             "success": True,
@@ -115,7 +115,7 @@ def _fetch_tiktok_info(username: str):
             "followers": int(stats.get("followerCount") or 0),
             "following": int(stats.get("followingCount") or 0),
             "likes": int(stats.get("heartCount") or 0),
-            "posts": posts_data,  # ✅ new
+            "posts": posts_data,  
             "posts_count": len(posts_data),
             "is_private": bool(user.get("privateAccount", False)),
             "verified": bool(user.get("verified", False)),
@@ -161,7 +161,7 @@ def scrape_tiktok_profile(username: str):
                 },
             )
 
-            return result  # ✅ includes post data now
+            return result  
 
         else:
             return {"success": False, "reason": result.get("error")}

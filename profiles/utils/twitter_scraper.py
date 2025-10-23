@@ -95,10 +95,10 @@ def fetch_and_store_tweets(username: str, client=None, limit: int = 10):
             print(f"Saved {len(saved_tweets)} tweets for {username}")
             return saved_tweets
         except tweepy.TweepyException as e:
-            print(f"❌ Error fetching tweets for {username}: {e}")
+            print(f"Error fetching tweets for {username}: {e}")
             return []
         except Exception as e:
-            print(f"⚠️ Unexpected error saving tweets for {username}: {e}")
+            print(f"Unexpected error saving tweets for {username}: {e}")
             return []
 
 
@@ -115,9 +115,9 @@ def unscrape_twitter_bio(username: str) -> bool:
         SocialMediaAccount.objects.filter(profile=profile, platform="Twitter").delete()
         RawPost.objects.filter(profile=profile, platform="Twitter").delete()
 
-        print(f"🗑️ Cleared Twitter bio and posts for {username}")
+        print(f"Cleared Twitter bio and posts for {username}")
         return True
 
     except Profile.DoesNotExist:
-        print(f"⚠️ Profile for {username} not found.")
+        print(f"Profile for {username} not found.")
         return False

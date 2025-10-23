@@ -53,7 +53,6 @@ def scrape_tiktok_task(self, username: str) -> dict:
                     "external_url": result.get("external_url"),
                 },
             )
-
             # --- Save Raw Posts (for Behavioral Dashboard) ---
             posts = result.get("posts", [])
             saved_count = 0
@@ -83,9 +82,7 @@ def scrape_tiktok_task(self, username: str) -> dict:
             ensure_behavioral_record(profile)
             perform_behavioral_analysis.delay(profile.id)
             logger.info(f"✅ Behavioral record ensured for {username} (TikTok)")
-
             return {"success": True, "username": username, "platform": "TikTok"}
-
 
         # Handle explicit scrape failure (returned by scraper)
         reason = result.get("reason") or result.get("error") or "Unknown error"
@@ -116,7 +113,7 @@ def scrape_instagram_task(self, username: str) -> dict:
     try:
         data = scrape_instagram_profile(username)
 
-        # ✅ Handle permanent failures (invalid, deleted, private, no data)
+        # Handle permanent failures (invalid, deleted, private, no data)
         if not data or (isinstance(data, dict) and "error" in data):
             reason = data.get("error") if isinstance(data, dict) else "no data"
             logger.warning(f"Permanent failure scraping {username}: {reason}")
@@ -146,7 +143,7 @@ def scrape_instagram_task(self, username: str) -> dict:
 
             return {"success": False, "username": username, "platform": "Instagram", "reason": reason}
 
-        # ✅ Valid scrape → save full profile
+        # Valid scrape → save full profile
         with transaction.atomic():
             profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
             profile.full_name = data.get("full_name", "")
@@ -189,7 +186,7 @@ def scrape_instagram_task(self, username: str) -> dict:
                 logger.warning(f"Temporary error for {username}, retrying in {wait_time} seconds")
                 raise self.retry(exc=e, countdown=wait_time)
 
-            # ❌ For all other errors (invalid username, private, deleted), mark as permanent
+            # For all other errors (invalid username, private, deleted), mark as permanent
             logger.error(f"Permanent error for {username}: {err_msg}")
             return {"success": False, "username": username, "platform": "Instagram", "reason": err_msg}
 
@@ -215,9 +212,8 @@ def perform_behavioral_analysis(self, profile_id):
         posts = list(RawPost.objects.filter(profile=profile).values_list("content", flat=True))
         text_data = " ".join([t for t in social_data if t])
 
-        # ====================================
-        # 🧠 BRANCH 1: GITHUB BEHAVIOR ANALYSIS
-        # ====================================
+        
+        # GITHUB BEHAVIOR ANALYSIS
         if profile.platform == "GitHub":
             sm = SocialMediaAccount.objects.filter(profile=profile, platform="GitHub").first()
 
@@ -268,9 +264,9 @@ def perform_behavioral_analysis(self, profile_id):
             logger.info(f"✅ GitHub Behavioral analysis completed for {profile.username}")
             return {"success": True, "profile": profile.username}
 
-        # ====================================
-        # 🧠 BRANCH 2: GENERIC (Instagram/TikTok)
-        # ====================================
+       
+        # (Instagram/TikTok)
+        
         posts_qs = RawPost.objects.filter(profile=profile)
         if posts_qs.exists():
             df = pd.DataFrame(list(posts_qs.values("timestamp")))
@@ -288,7 +284,7 @@ def perform_behavioral_analysis(self, profile_id):
         captions = list(posts_qs.values_list("content", flat=True)) if posts_qs.exists() else []
         used_scrapingbee = False
 
-        # 🧩 Fallback: Use ScrapingBee to get captions if no RawPosts available
+        # Fallback: Use ScrapingBee to get captions if no RawPosts available
         if profile.platform == "Instagram" and not captions:
             used_scrapingbee = True
             captions = scrape_instagram_posts_scrapingbee(profile.username, max_posts=10)

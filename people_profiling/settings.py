@@ -22,12 +22,6 @@ TWITTER_API_KEY = config('TWITTER_API_KEY')
 TWITTER_API_SECRET = config('TWITTER_API_SECRET', default=None)
 TWITTER_BEARER_TOKEN = config('TWITTER_BEARER_TOKEN', default=None)
 
-
-
-
-
-
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -46,7 +40,6 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     ]
-
 
 # Application definition
 
@@ -96,19 +89,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'people_profiling.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-
-#DATABASES = {
-   # 'default': {
-    #    'ENGINE': 'django.db.backends.sqlite3',
-    #    'NAME': BASE_DIR / 'db.sqlite3',
-   # }
-#}
-
-# Simple file-based caching (good for development)
-# use Memcached or Redis for production setups
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
@@ -155,7 +135,7 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Media files (now on Cloudinary)
+# Media files on Cloudinary
 DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 MEDIA_URL = '/media/'
 
@@ -174,16 +154,7 @@ SESSION_FILE = os.path.join(SESSION_DIR, f"{IG_LOGIN}_session")
 SHERLOCK_PATH = os.path.join(BASE_DIR, 'external', 'sherlock')
 
 # Where to store the output files
-#SHERLOCK_OUTPUT = os.path.join(BASE_DIR, 'output', 'sherlock')
 SHERLOCK_OUTPUT = os.path.join("/tmp", "sherlock")
-
-
-
-#CELERY_BROKER_URL = 'redis://localhost:6379/0'   # Redis as broker
-#CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-#CELERY_BROKER_URL = os.getenv("REDIS_URL",default= "redis://localhost:6379/0")
-#CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-
 
 # --- Redis Configs ---
 RENDER_REDIS_URL = config("REDIS_URL", default="redis://red-d3egidl6ubrc73cs688g:6379")
@@ -198,14 +169,14 @@ TIKTOK_LOCAL_MODE = os.getenv("TIKTOK_LOCAL_MODE", "False").lower() == "true"
 if TIKTOK_LOCAL_MODE:
     CELERY_BROKER_URL = LOCAL_REDIS_URL
     CELERY_RESULT_BACKEND = LOCAL_REDIS_URL
-    print("💻 TikTok worker using LOCAL Docker Redis")
+    print(" TikTok worker using LOCAL Docker Redis")
 else:
     CELERY_BROKER_URL = RENDER_REDIS_URL
     CELERY_RESULT_BACKEND = RENDER_REDIS_URL
-    print("🌐 Using Render Redis (default)")
+    print("Using Render Redis (default)")
 
-print(f"🚀 Celery Broker: {CELERY_BROKER_URL}")
-print(f"🧭 Hostname: {HOSTNAME}")
+print(f" Celery Broker: {CELERY_BROKER_URL}")
+print(f" Hostname: {HOSTNAME}")
 
 # --- Celery Queues ---
 CELERY_TASK_QUEUES = (
@@ -225,8 +196,6 @@ CELERY_TIMEZONE = "Africa/Nairobi"
 # Initialise environment variables
 env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
-#TIKTOK_SESSIONID = env("TIKTOK_SESSIONID")
-# make it available globally
 ENV = env  
 
 # Database
@@ -234,7 +203,7 @@ if IS_RENDER:
     DATABASES = {
         "default": dj_database_url.config(conn_max_age=600, ssl_require=True)
     }
-    print("🌍 Using Render PostgreSQL (SSL required)")
+    print("Using Render PostgreSQL (SSL required)")
 else:
     DATABASES = {
         "default": dj_database_url.config(
@@ -243,9 +212,7 @@ else:
             ssl_require=False,  #  Disable SSL locally
         )
     }
-    print("💻 Using Local PostgreSQL (SSL disabled)")
-
-
+    print("Using Local PostgreSQL (SSL disabled)")
 
 
 # TikTok cookies

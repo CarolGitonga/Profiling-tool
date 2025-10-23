@@ -14,9 +14,9 @@ def generate_wordcloud(text: str):
         background_color="white",
         colormap="viridis",
         max_words=120,
-        min_font_size=8,       # smaller minimum font
-        max_font_size=60,      #limit largest word size
-        prefer_horizontal=0.9, #mostly horizontal layout
+        min_font_size=8,     
+        max_font_size=60,     
+        prefer_horizontal=0.9, 
         scale=2,
     ).generate(text)
 

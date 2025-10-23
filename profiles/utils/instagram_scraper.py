@@ -15,27 +15,27 @@ def get_instaloader() -> instaloader.Instaloader:
     session_loaded = False
 
     try:
-        # 1️⃣ Try to load local session (for development)
+        # Try to load local session (for development)
         if hasattr(settings, "SESSION_FILE") and os.path.exists(settings.SESSION_FILE):
             L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
             logging.info("💻 Loaded local Instagram session file.")
             session_loaded = True
 
-        # 2️⃣ Fallback to environment session (for Render)
+        # Fallback to environment session (for Render)
         elif os.getenv("INSTAGRAM_SESSION_DATA"):
             session_data = os.getenv("INSTAGRAM_SESSION_DATA")
             tmpfile = tempfile.NamedTemporaryFile(delete=False)
             tmpfile.write(session_data.encode())
             tmpfile.close()
             L.load_session_from_file("iamcarolgitonga", filename=tmpfile.name)
-            logging.info("🌐 Loaded Instagram session from environment variable.")
+            logging.info(" Loaded Instagram session from environment variable.")
             session_loaded = True
 
         if not session_loaded:
-            logging.warning("⚠️ No Instagram session available. You may hit login errors.")
+            logging.warning(" No Instagram session available. You may hit login errors.")
 
     except Exception as e:
-        logging.exception(f"❌ Failed to load Instagram session: {e}")
+        logging.exception(f" Failed to load Instagram session: {e}")
 
     return L
 
@@ -44,11 +44,6 @@ def scrape_instagram_profile(username: str) -> dict | None:
     try:
         # Initialize Instaloader
         L = instaloader.Instaloader()
-        # Load saved session (to avoid frequent logins and rate limits)
-       # L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
-        
-        
-
         # Fetch the target user profile
         profile = instaloader.Profile.from_username(L.context, username)
 
@@ -58,8 +53,6 @@ def scrape_instagram_profile(username: str) -> dict | None:
         except AttributeError:
             logging.warning(f"No profile picture found for {username}")
             profile_pic_url = None
-
-        
 
         return {
             'full_name': profile.full_name,
@@ -87,12 +80,11 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
     posts_saved = []
     try:
         L = instaloader.Instaloader()
-       # L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
         profile = instaloader.Profile.from_username(L.context, username)
 
         db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
         if not db_profile:
-            logger.warning(f"⚠️ No Profile found for {username} — skipping post save.")
+            logger.warning(f"No Profile found for {username} — skipping post save.")
             return []
         
         count = 0
@@ -102,7 +94,7 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
             caption = post.caption or ""
             timestamp = post.date_utc or timezone.now()
 
-            # 🧠 Sentiment analysis
+            # Sentiment analysis
             sentiment = round(TextBlob(caption).sentiment.polarity, 3) if caption else 0.0
             RawPost.objects.update_or_create(
                 profile=db_profile,
@@ -146,7 +138,7 @@ def unscrape_instagram_profile(username: str) -> bool:
         SocialMediaAccount.objects.filter(profile=profile, platform="Instagram").delete()
         RawPost.objects.filter(profile=profile, platform="Instagram").delete()
         profile.delete()
-        logger.info(f"🗑️ Removed Instagram profile and posts for {username}")
+        logger.info(f"Removed Instagram profile and posts for {username}")
         return True
     except Profile.DoesNotExist:
         return False
