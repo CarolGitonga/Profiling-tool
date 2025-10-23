@@ -1,63 +1,70 @@
 {% extends "pages/base.html" %}
 {% block title %}Welcome | People Profiling{% endblock %}
 {% block content %}
-  <style>
 
-    .hero-section h1 {
-      font-size: 2.8rem;
-      font-weight: 600;
-      line-height: 1.4;
-      text-align: center;
-    }
-    .highlight {
-      color: #f6c100; /* Yellow/orange highlight for 'al' */
-    }
-    .investigation-section {
-    background: #22267c;
-    color: #fdffff;
+<style>
+  /* --- Hero Section --- */
+  .hero-section {
+    text-align: center;
+    padding: 5rem 1rem 4rem;
+  }
+  .hero-section h1 {
+    font-size: 2.8rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .highlight {
+    color: #f6c100; /* gold/yellow accent */
   }
 
+  /* --- Investigation Section --- */
+  .investigation-section {
+    background: #22267c;
+    color: #fdffff;
+    padding: 4rem 1rem;
+  }
   .investigation-section h2 {
     font-weight: 600;
   }
-
+  .investigation-section p {
+    color: #d6d6d6;
+  }
   .investigate-card {
-    background: #22267c;
-    border-radius: 12px;
-    padding: 20px 40px;
+    background: #1f2370;
+    border-radius: 14px;
+    padding: 25px 35px;
     min-width: 220px;
     text-align: center;
     transition: all 0.3s ease;
     cursor: pointer;
+    color: #fff;
+    text-decoration: none;
   }
-
-  .investigate-card.active {
-    background: #1da1f2; /* Twitter blue for active */
+  .investigate-card:hover {
+    background: #3439a7;
+    transform: translateY(-5px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+    color: #f6c100;
   }
-
   .investigate-card .icon {
-    font-size: 2rem;
-    margin-bottom: 8px;
-    opacity: 0.9;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
   }
-
   .investigate-card .label {
     font-size: 1.1rem;
     font-weight: 500;
   }
 
-  .investigate-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.3);
-  }
+  /* --- Features Section --- */
   .features-section {
     background: #fdffff;
     color: #333;
+    padding: 5rem 1rem;
   }
   .feature-number {
     font-size: 2rem;
     font-weight: 700;
-    color: #f6c100; /* Orange highlight */
+    color: #f6c100;
     margin-bottom: 15px;
   }
   .features-section h5 {
@@ -68,68 +75,65 @@
     font-size: 0.95rem;
     color: #555;
   }
-  
-  </style>
-</head>
-<body>
+</style>
 
-  <!-- Main content -->
-  <div class="container text-center mt-5">
-    <h1>Welcome to People Profiling</h1>
-    <p class="lead">Investigate smarter. Connect insights. Reveal hidden patterns.</p>
-  </div>
+<!-- Welcome Header -->
+<div class="container text-center mt-5">
+  <h1 class="fw-bold">Welcome to People Profiling</h1>
+  <p class="lead">Investigate smarter. Connect insights. Reveal hidden patterns.</p>
+</div>
 
-   <!-- Hero Section -->
-  <section class="hero-section">
-    <h1>
-      Start with a single <span class="highlight">name</span><br>
-      to uncover the full story,<br>
-      and stop the crime!
-    </h1>
-  </section>
+<!-- Hero Section -->
+<section class="hero-section">
+  <h1>
+    Start with a single <span class="highlight">name</span><br>
+    to uncover the full story,<br>
+    and stop the crime!
+  </h1>
+</section>
 
-  <!-- Investigation Section -->
-<section class="investigation-section text-center py-5">
+<!-- Investigation Section -->
+<section class="investigation-section text-center">
   <div class="container">
     <h2 class="mb-2">Who do you want to investigate today?</h2>
-    <p class="text-muted mb-4">PICK A STARTING POINT TO UNCOVER THE FULL STORY.</p>
+    <p class="mb-4">Pick a starting point to uncover the full story.</p>
 
-    <div class="d-flex justify-content-center flex-wrap gap-3">
+    <div class="d-flex justify-content-center flex-wrap gap-4">
       <!-- Twitter -->
-      <div class="investigate-card">
-        <div class="icon"><i class="fab fa-twitter"></i></div>
+      <a href="{% url 'search_profile' %}?platform=twitter" class="investigate-card">
+        <div class="icon"><i class="bi bi-twitter"></i></div>
         <div class="label">@LoneLion47</div>
-      </div>
+      </a>
 
       <!-- GitHub -->
-      <div class="investigate-card">
-        <div class="icon"><i class="fab fa-github"></i></div>
+      <a href="{% url 'search_profile' %}?platform=github" class="investigate-card">
+        <div class="icon"><i class="bi bi-github"></i></div>
         <div class="label">githubuser</div>
-      </div>
+      </a>
 
       <!-- Instagram -->
-      <div class="investigate-card">
-        <div class="icon"><i class="fab fa-instagram"></i></div>
+      <a href="{% url 'search_profile' %}?platform=instagram" class="investigate-card">
+        <div class="icon"><i class="bi bi-instagram"></i></div>
         <div class="label">@insta_profile</div>
-      </div>
+      </a>
 
-      <!-- Another Twitter -->
-      <div class="investigate-card">
-        <div class="icon"><i class="fab fa-tiktok"></i></div>
+      <!-- TikTok -->
+      <a href="{% url 'search_profile' %}?platform=tiktok" class="investigate-card">
+        <div class="icon"><i class="bi bi-tiktok"></i></div>
         <div class="label">@altAccount</div>
-      </div>
+      </a>
     </div>
   </div>
 </section>
 
 <!-- Features Section -->
-<section class="features-section py-5">
+<section class="features-section text-center">
   <div class="container">
-    <h2 class="text-center mb-5">Why People Profiling for Investigations?</h2>
-    <div class="row text-center">
+    <h2 class="fw-bold mb-5">Why People Profiling for Investigations?</h2>
+    <div class="row g-4">
       
       <!-- Feature 1 -->
-      <div class="col-md-4 mb-4">
+      <div class="col-md-4">
         <h1 class="feature-number">1</h1>
         <h5 class="fw-bold">Begin with a single lead.<br>Reveal the bigger picture.</h5>
         <p>
@@ -138,9 +142,9 @@
           networks, behaviors, and connections that might otherwise remain hidden.
         </p>
       </div>
-      
+
       <!-- Feature 2 -->
-      <div class="col-md-4 mb-4">
+      <div class="col-md-4">
         <h1 class="feature-number">2</h1>
         <h5 class="fw-bold">Link data across platforms.<br>See connections instantly.</h5>
         <p>
@@ -149,9 +153,9 @@
           and surface key insights in minutes instead of days.
         </p>
       </div>
-      
+
       <!-- Feature 3 -->
-      <div class="col-md-4 mb-4">
+      <div class="col-md-4">
         <h1 class="feature-number">3</h1>
         <h5 class="fw-bold">Investigate with confidence.<br>Secure and reliable.</h5>
         <p>
@@ -160,11 +164,8 @@
           and ensure your findings are credible — even in high-stakes investigations.
         </p>
       </div>
-
     </div>
   </div>
 </section>
-{% endblock %}
 
-</body>
-</html>
+{% endblock %}
