@@ -6,9 +6,6 @@ def run_sherlock(username: str):
     """
     Run Sherlock for a given username and return parsed results as a list of dicts.
     """
-    #sherlock_script = os.path.join(settings.SHERLOCK_PATH, 'sherlock_project', 'sherlock.py')
-    #output_file = os.path.join(settings.SHERLOCK_OUTPUT, f"{username}.txt")
-    #os.makedirs(settings.SHERLOCK_OUTPUT, exist_ok=True)
 
     # Safer output directory (works locally + Render)
     sherlock_output_dir = getattr(settings, "SHERLOCK_OUTPUT", os.path.join("/tmp", "sherlock"))

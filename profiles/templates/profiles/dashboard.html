@@ -66,7 +66,7 @@
         <h2 class="fw-bold">Dashboard for {{ profiles.0.username }}</h2>
     </div>
 
-       <!-- 🔁 Auto-Refresh Notice -->
+       <!-- Auto-Refresh Notice -->
     {% if not profiles.0.full_name and not profiles.0.socialmediaaccount_set.exists %}
         <div class="alert alert-info text-center mt-3">
             <i class="bi bi-hourglass-split"></i>
@@ -74,14 +74,10 @@
         </div>
 
         <script>
-            // 🔁 Auto-refresh every 10 seconds while scraping is incomplete
+            //  Auto-refresh every 10 seconds while scraping is incomplete
             setTimeout(() => location.reload(), 10000);
         </script>
     {% endif %}
-
- 
-
-
     <!-- Platform Cards -->
     <div class="row justify-content-center mt-4">
         <h3 class="section-title text-center">Profile Details</h3>
@@ -159,9 +155,9 @@
        class="btn btn-outline-info btn-sm mt-3">
         <i class="bi bi-graph-up"></i> View Behavioral Dashboard
     </a>
-                    {% elif profile.platform == 'Sherlock' %}
+                    {% elif profile.platform == 'Username' %}
                         <!-- Sherlock results -->
-                        <h5 class="mt-3 text-primary"><i class="bi bi-search"></i> Other Results</h5>
+                        <h5 class="mt-3 text-primary"><i class="bi bi-search"></i> Results Found</h5>
                         {% if request.session.sherlock_results %}
                             <div class="d-flex flex-wrap gap-2 mt-3 justify-content-center">
                                 {% for result in request.session.sherlock_results %}
