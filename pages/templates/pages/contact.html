@@ -1,0 +1,132 @@
+{% extends "pages/base.html" %}
+{% block title %}Contact | People Profiling{% endblock %}
+{% block content %}
+
+<style>
+  .contact-hero {
+    background: linear-gradient(135deg, #22267c, #3439a7);
+    color: white;
+    text-align: center;
+    padding: 5rem 1rem 4rem;
+  }
+
+  .contact-hero h1 {
+    font-weight: 700;
+    font-size: 2.5rem;
+  }
+
+  .contact-hero p {
+    font-size: 1.1rem;
+    color: #eaeaea;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .contact-section {
+    background: #f9f9fc;
+    padding: 4rem 1rem;
+  }
+
+  .contact-card {
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    padding: 2rem;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #22267c;
+  }
+
+  .form-control:focus {
+    border-color: #f6c100;
+    box-shadow: 0 0 0 0.2rem rgba(246, 193, 0, 0.25);
+  }
+
+  .contact-info {
+    color: #333;
+    font-size: 0.95rem;
+  }
+
+  .contact-info i {
+    color: #f6c100;
+    margin-right: 8px;
+  }
+
+  .btn-contact {
+    background: #22267c;
+    border: none;
+    color: white;
+    font-weight: 600;
+  }
+
+  .btn-contact:hover {
+    background: #1a1f6b;
+  }
+</style>
+
+<!-- Hero Section -->
+<section class="contact-hero">
+  <div class="container">
+    <h1>Contact Us</h1>
+    <p>We’d love to hear from you — whether it’s feedback, a partnership inquiry, or a technical question about People Profiling.</p>
+  </div>
+</section>
+
+<!-- Contact Form Section -->
+<section class="contact-section">
+  <div class="container">
+    <div class="row g-5 justify-content-center">
+
+      <!-- Contact Form -->
+      <div class="col-md-7">
+        <div class="contact-card">
+          <h3 class="text-center mb-4 fw-bold text-primary">Send Us a Message</h3>
+          <form method="POST">
+            {% csrf_token %}
+            {% if success %}
+              <div class="alert alert-success">✅ Your message has been sent successfully!</div>
+            {% endif %}
+            <div class="mb-3">
+              <label for="name" class="form-label">Your Name</label>
+              <input type="text" id="name" name="name" class="form-control" placeholder="Enter your full name" required>
+            </div>
+            <div class="mb-3">
+              <label for="email" class="form-label">Your Email</label>
+              <input type="email" id="email" name="email" class="form-control" placeholder="Enter your email" required>
+            </div>
+            <div class="mb-3">
+              <label for="message" class="form-label">Your Message</label>
+              <textarea id="message" name="message" class="form-control" rows="5" placeholder="Write your message here..." required></textarea>
+            </div>
+            <div class="text-center">
+              <button type="submit" class="btn btn-contact btn-lg mt-3">Send Message</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Contact Info -->
+      <div class="col-md-4 align-self-center">
+        <div class="contact-info">
+          <h5 class="fw-bold text-primary mb-3">Reach Us</h5>
+          <p><i class="bi bi-envelope-fill"></i> support@peopleprofiling.com</p>
+          <p><i class="bi bi-geo-alt-fill"></i> Nairobi, Kenya</p>
+          <p><i class="bi bi-clock-fill"></i> Monday - Friday: 9:00 AM - 5:00 PM</p>
+
+          <h6 class="fw-bold text-primary mt-4">Follow Us</h6>
+          <div class="d-flex gap-3 mt-2">
+            <a href="#" class="text-dark fs-4"><i class="bi bi-twitter"></i></a>
+            <a href="#" class="text-dark fs-4"><i class="bi bi-instagram"></i></a>
+            <a href="#" class="text-dark fs-4"><i class="bi bi-github"></i></a>
+            <a href="#" class="text-dark fs-4"><i class="bi bi-tiktok"></i></a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+{% endblock %}
