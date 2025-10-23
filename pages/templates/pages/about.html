@@ -1,0 +1,194 @@
+{% extends "pages/base.html" %}
+{% block title %}About | People Profiling{% endblock %}
+{% block content %}
+
+<style>
+  .about-hero {
+    background: linear-gradient(135deg, #22267c, #3439a7);
+    color: white;
+    text-align: center;
+    padding: 5rem 1rem;
+  }
+
+  .about-hero h1 {
+    font-weight: 700;
+    font-size: 2.8rem;
+  }
+
+  .about-hero p {
+    font-size: 1.1rem;
+    color: #eaeaea;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .section-title {
+    color: #22267c;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .mission-section {
+    background: #f9f9fc;
+    padding: 4rem 1rem;
+  }
+
+  .mission-card {
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    padding: 2rem;
+    text-align: center;
+    transition: transform 0.3s ease;
+  }
+
+  .mission-card:hover {
+    transform: translateY(-6px);
+  }
+
+  .mission-card i {
+    color: #f6c100;
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  .team-section {
+    background: white;
+    padding: 4rem 1rem;
+  }
+
+  .team-member {
+    text-align: center;
+  }
+
+  .team-member img {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 1rem;
+    border: 3px solid #22267c;
+  }
+
+  .team-member h5 {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  .team-member p {
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .cta-section {
+    background: #22267c;
+    color: white;
+    text-align: center;
+    padding: 4rem 1rem;
+  }
+
+  .cta-section .btn {
+    background: #f6c100;
+    border: none;
+    color: #222;
+    font-weight: 600;
+  }
+
+  .cta-section .btn:hover {
+    background: #ffd740;
+  }
+</style>
+
+<!-- Hero Section -->
+<section class="about-hero">
+  <div class="container">
+    <h1>About People Profiling</h1>
+    <p>
+      People Profiling is an open-source intelligence (OSINT) platform designed to help investigators,
+      researchers, and security professionals uncover digital footprints, analyze behavioral data,
+      and connect insights across multiple platforms.
+    </p>
+  </div>
+</section>
+
+<!-- Mission / Vision Section -->
+<section class="mission-section">
+  <div class="container text-center">
+    <h2 class="section-title">Our Vision & Mission</h2>
+    <div class="row g-4 mt-4">
+      
+      <div class="col-md-4">
+        <div class="mission-card">
+          <i class="bi bi-eye"></i>
+          <h5>Our Vision</h5>
+          <p>
+            To become the leading intelligence tool that empowers ethical investigations,
+            promotes transparency, and drives accountability in the digital space.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="mission-card">
+          <i class="bi bi-lightbulb"></i>
+          <h5>Our Mission</h5>
+          <p>
+            To bridge the gap between raw social data and actionable insight by combining
+            OSINT methodologies, digital forensics, and data visualization.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="mission-card">
+          <i class="bi bi-shield-lock"></i>
+          <h5>Our Values</h5>
+          <p>
+            We prioritize integrity, data ethics, and accuracy in every investigation,
+            ensuring that digital intelligence is used responsibly and securely.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Team Section -->
+<section class="team-section">
+  <div class="container text-center">
+    <h2 class="section-title mb-5">The Team Behind the Project</h2>
+    <div class="row justify-content-center g-4">
+
+      <div class="col-md-4">
+        <div class="team-member">
+          <img src="https://res.cloudinary.com/demo/image/upload/sample.jpg" alt="Team Member">
+          <h5>Carol Gitonga</h5>
+          <p>Founder & Lead Developer</p>
+          <small>Computer Science (Information Security & Forensics), KCA University</small>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="team-member">
+          <img src="https://res.cloudinary.com/demo/image/upload/woman.jpg" alt="Team Member">
+          <h5>AI Research Assistant</h5>
+          <p>Project Collaborator (Emma)</p>
+          <small>AI-powered support for automation, UX design, and OSINT architecture.</small>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Call-to-Action -->
+<section class="cta-section">
+  <div class="container">
+    <h2 class="fw-bold mb-3">Start Your Investigation Today</h2>
+    <p class="mb-4">Uncover the patterns. Connect the dots. Build the bigger picture.</p>
+    <a href="{% url 'search_profile' %}" class="btn btn-lg">Start Investigating</a>
+  </div>
+</section>
+
+{% endblock %}
