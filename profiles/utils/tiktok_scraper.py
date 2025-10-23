@@ -29,9 +29,10 @@ def _fetch_tiktok_info(username: str):
             target_url,
             params={
                 "render_js": "true",
+                "wait": "8000",                # ⏱ longer wait
+                "stealth_proxy": "true",       # 🕵️ bypass detection
                 "block_resources": "false",
-                "country_code": "us",
-                "wait": "4000"
+                "premium_proxy": "true",
             },
             headers={
                 "User-Agent": (
@@ -84,10 +85,10 @@ def _fetch_tiktok_info(username: str):
         if not user:
             return {"error": f"No user data found for {username}"}
 
-        # ✅ Extract posts (videos)
+        # ✅ Extract posts (ItemModule)
         posts_data = []
         if "ItemModule" in data:
-            for vid_id, vid in list(data["ItemModule"].items())[:10]:  # limit to 10
+            for vid_id, vid in list(data["ItemModule"].items())[:10]:
                 caption = vid.get("desc", "").strip()
                 stats_obj = vid.get("stats", {})
                 likes = int(stats_obj.get("diggCount") or 0)
@@ -103,6 +104,8 @@ def _fetch_tiktok_info(username: str):
                     "comments": comments,
                     "timestamp": timestamp,
                 })
+        if not posts_data:
+            logger.warning(f"⚠️ No TikTok posts found for {username} (ItemModule empty).")
 
         return {
             "success": True,
