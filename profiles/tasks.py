@@ -31,9 +31,6 @@ def scrape_tiktok_task(self, username: str) -> dict:
         # Handle success
         if result.get("success"):
             logger.info(f"TikTok scrape succeeded for {username}")
-
-            #return {"success": True, "username": username, "platform": "TikTok"}
-            # Get or create profile entry
             profile, _ = Profile.objects.get_or_create(
                 username=username,
                 platform="TikTok"
@@ -56,6 +53,32 @@ def scrape_tiktok_task(self, username: str) -> dict:
                     "external_url": result.get("external_url"),
                 },
             )
+
+            # --- Save Raw Posts (for Behavioral Dashboard) ---
+            posts = result.get("posts", [])
+            saved_count = 0
+            for post in posts:
+                caption = post.get("caption") or ""
+                likes = int(post.get("likes", 0))
+                comments = int(post.get("comments", 0))
+                timestamp = post.get("timestamp") or timezone.now()
+                # Compute sentiment for caption
+                sentiment = round(TextBlob(caption).sentiment.polarity, 2)
+
+                RawPost.objects.update_or_create(
+                    profile=profile,
+                    content=caption[:500],
+                    platform="TikTok",
+                    defaults={
+                        "likes": likes,
+                        "comments": comments,
+                        "sentiment_score": sentiment,
+                        "timestamp": timestamp,
+                    },
+                )
+                saved_count += 1
+            logger.info(f"✅ Saved {saved_count} TikTok posts for {username}")
+
             #Create behavioral record
             ensure_behavioral_record(profile)
             perform_behavioral_analysis.delay(profile.id)
