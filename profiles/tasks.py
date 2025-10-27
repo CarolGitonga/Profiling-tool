@@ -193,39 +193,70 @@ def scrape_instagram_task(self, username: str) -> dict:
         except self.MaxRetriesExceededError:
             return {"error": err_msg, "username": username, "platform": "Instagram"}
     
-
-
 @shared_task(bind=True, queue="default")
 def perform_behavioral_analysis(self, profile_id):
     """
     Analyze a user's posting behavior, language, and interests.
     Updates the BehavioralAnalysis model for the given profile.
-    Includes GitHub-specific behavioral metrics.
+
+    Supports:
+    - GitHub: Developer engagement metrics
+    - Instagram: Caption + bio sentiment, hashtags, activity
+    - TikTok: Caption sentiment, hashtags, engagement, influence
     """
 
     try:
         profile = Profile.objects.get(id=profile_id)
         analysis, _ = BehavioralAnalysis.objects.get_or_create(profile=profile)
+        sm = SocialMediaAccount.objects.filter(profile=profile, platform=profile.platform).first()
+        posts_qs = RawPost.objects.filter(profile=profile)
 
-        # Fetch bio text (used for sentiment, keyword, interest analysis)
-        social_data = SocialMediaAccount.objects.filter(profile=profile).values_list("bio", flat=True)
-        posts = list(RawPost.objects.filter(profile=profile).values_list("content", flat=True))
-        text_data = " ".join([t for t in social_data if t])
+        # Shared helpers
+        def compute_posting_patterns(posts_df):
+            if posts_df.empty:
+                return None, []
+            posts_df["hour"] = posts_df["timestamp"].apply(lambda x: x.hour)
+            posts_df["weekday"] = posts_df["timestamp"].apply(lambda x: x.strftime("%A"))
+            avg_post_time = f"{int(posts_df['hour'].mode()[0])}:00"
+            most_active_days = posts_df["weekday"].value_counts().head(3).index.tolist()
+            return avg_post_time, most_active_days
 
-        
-        # GITHUB BEHAVIOR ANALYSIS
+        def extract_keywords(text):
+            hashtags = re.findall(r"#(\w+)", text)
+            words = re.findall(r"\b[a-zA-Z]{4,}\b", text.lower())
+            all_keywords = hashtags + words
+            return pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
+
+        def compute_sentiment_distribution(captions):
+            sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
+            sentiments = []
+            for caption in captions:
+                sentiment = round(TextBlob(str(caption)).sentiment.polarity, 2)
+                sentiments.append(sentiment)
+                if sentiment > 0.05:
+                    sentiment_distribution["positive"] += 1
+                elif sentiment < -0.05:
+                    sentiment_distribution["negative"] += 1
+                else:
+                    sentiment_distribution["neutral"] += 1
+            overall_score = round(
+                (sentiment_distribution["positive"] - sentiment_distribution["negative"])
+                / max(1, sum(sentiment_distribution.values())),
+                2,
+            )
+            return sentiments, sentiment_distribution, overall_score
+
+        # =============================
+        # 🧩 PLATFORM: GITHUB
+        # =============================
         if profile.platform == "GitHub":
-            sm = SocialMediaAccount.objects.filter(profile=profile, platform="GitHub").first()
-
-            # --- Developer Engagement Metrics ---
             followers = sm.followers if sm else 0
             following = sm.following if sm else 0
-            repos = sm.public_repos if hasattr(sm, "public_repos") else 0
+            repos = getattr(sm, "public_repos", 0)
 
             follower_ratio = round(followers / (following or 1), 2)
             influence_score = round((followers * 0.6) + (repos * 0.4), 2)
 
-            # --- Activity Pattern (based on repos + followers) ---
             if repos > 50:
                 activity_pattern = "Extremely Active Developer"
             elif repos > 20:
@@ -235,22 +266,18 @@ def perform_behavioral_analysis(self, profile_id):
             else:
                 activity_pattern = "Low GitHub Activity"
 
-            # --- Interest Extraction ---
             keywords = []
-            if sm.bio:
+            if sm and sm.bio:
                 keywords += re.findall(r"\b[a-zA-Z]{4,}\b", sm.bio.lower())
             if profile.company:
                 keywords.append(profile.company.lower())
             if profile.blog:
                 keywords.append("blog")
-
             keyword_freq = pd.Series(keywords).value_counts().head(10).to_dict() if keywords else {}
 
-            # --- Sentiment of bio (optional heuristic) ---
             sentiment_score = round(TextBlob(sm.bio).sentiment.polarity, 2) if sm and sm.bio else 0.0
 
-            # --- Save GitHub Analysis ---
-            analysis.avg_post_time = "N/A"  # not applicable for GitHub
+            analysis.avg_post_time = "N/A"
             analysis.most_active_days = ["Varies"]
             analysis.sentiment_score = sentiment_score
             analysis.top_keywords = keyword_freq
@@ -261,103 +288,125 @@ def perform_behavioral_analysis(self, profile_id):
             analysis.analyzed_at = timezone.now()
             analysis.save()
 
-            logger.info(f"✅ GitHub Behavioral analysis completed for {profile.username}")
+            logger.info(f"✅ GitHub behavioral analysis done for {profile.username}")
             return {"success": True, "profile": profile.username}
 
-       
-        # (Instagram/TikTok)
-        
-        posts_qs = RawPost.objects.filter(profile=profile)
-        if posts_qs.exists():
-            df = pd.DataFrame(list(posts_qs.values("timestamp")))
-            df["hour"] = df["timestamp"].apply(lambda x: x.hour)
-            df["weekday"] = df["timestamp"].apply(lambda x: x.strftime("%A"))
-            avg_post_time = f"{int(df['hour'].mode()[0])}:00"
-            most_active_days = df["weekday"].value_counts().head(3).index.tolist()
-        else:
-            avg_post_time = None
-            most_active_days = []
+        # =============================
+        # 🧩 PLATFORM: INSTAGRAM
+        # =============================
+        if profile.platform == "Instagram":
+            captions = list(posts_qs.values_list("content", flat=True))
+            used_scrapingbee = False
 
-        # --- Sentiment Analysis ---
-        sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
-        sentiments = []
-        captions = list(posts_qs.values_list("content", flat=True)) if posts_qs.exists() else []
-        used_scrapingbee = False
+            if not captions:
+                # fallback to scrapingbee if no RawPosts
+                from profiles.utils.instagram_scrapingbee_scraper import scrape_instagram_posts_scrapingbee
+                captions = scrape_instagram_posts_scrapingbee(profile.username, max_posts=10)
+                used_scrapingbee = True
 
-        # Fallback: Use ScrapingBee to get captions if no RawPosts available
-        if profile.platform == "Instagram" and not captions:
-            used_scrapingbee = True
-            captions = scrape_instagram_posts_scrapingbee(profile.username, max_posts=10)
-
-        # --- Analyze Captions ---
-        for item in captions:
-            if isinstance(item, (list, tuple)) and len(item) == 2:
-                caption, sentiment = item
-            else:
-                caption = str(item)
-                sentiment = round(TextBlob(caption).sentiment.polarity, 2)
-
-            sentiments.append(sentiment)
-
-            # --- Sentiment distribution counters ---
-            if sentiment > 0.05:
-                sentiment_distribution["positive"] += 1
-            elif sentiment < -0.05:
-                sentiment_distribution["negative"] += 1
-            else:
-                sentiment_distribution["neutral"] += 1
-
-            # --- Save or update RawPost (for ScrapingBee fallback) ---
-            RawPost.objects.update_or_create(
-                profile=profile,
-                content=caption[:500],
-                platform="Instagram",
-                defaults={
-                    "sentiment_score": sentiment,
-                    "timestamp": timezone.now(),
-                },
+            sentiments, sentiment_distribution, sentiment_score = compute_sentiment_distribution(captions)
+            text_data = " ".join(captions + ([sm.bio] if sm and sm.bio else []))
+            keyword_freq = extract_keywords(text_data)
+            avg_post_time, most_active_days = compute_posting_patterns(
+                pd.DataFrame(list(posts_qs.values("timestamp"))) if posts_qs.exists() else pd.DataFrame()
             )
 
-        # --- Compute aggregate sentiment score ---
-        sentiment_score = round(
-            (sentiment_distribution["positive"] - sentiment_distribution["negative"])
-            / max(1, sum(sentiment_distribution.values())),
-            2,
+            network_size = (sm.followers + sm.following) if sm else 0
+            geo_locations = []
+            if sm and sm.bio:
+                if "nairobi" in sm.bio.lower():
+                    geo_locations.append("Nairobi")
+                if "kenya" in sm.bio.lower():
+                    geo_locations.append("Kenya")
+
+            analysis.avg_post_time = avg_post_time
+            analysis.most_active_days = most_active_days
+            analysis.sentiment_score = sentiment_score
+            analysis.top_keywords = keyword_freq
+            analysis.geo_locations = geo_locations
+            analysis.network_size = network_size
+            analysis.sentiment_distribution = sentiment_distribution
+            analysis.used_scrapingbee = used_scrapingbee
+            analysis.influence_score = round(network_size * (sentiment_score + 1), 2)
+            analysis.analyzed_at = timezone.now()
+            analysis.save()
+
+            logger.info(f"✅ Instagram behavioral analysis done for {profile.username}")
+            return {"success": True, "profile": profile.username}
+
+        # =============================
+        # 🧩 PLATFORM: TIKTOK
+        # =============================
+        if profile.platform == "TikTok":
+            captions = list(posts_qs.values_list("content", flat=True))
+            sentiments, sentiment_distribution, sentiment_score = compute_sentiment_distribution(captions)
+
+            # Aggregate keyword extraction from captions + bio
+            text_data = " ".join(captions + ([sm.bio] if sm and sm.bio else []))
+            keyword_freq = extract_keywords(text_data)
+
+            # Activity patterns
+            avg_post_time, most_active_days = compute_posting_patterns(
+                pd.DataFrame(list(posts_qs.values("timestamp"))) if posts_qs.exists() else pd.DataFrame()
+            )
+
+            # Influence = weighted by engagement
+            likes = sum(list(posts_qs.values_list("likes", flat=True))) if posts_qs.exists() else 0
+            comments = sum(list(posts_qs.values_list("comments", flat=True))) if posts_qs.exists() else 0
+            total_engagement = likes + comments
+            followers = sm.followers if sm else 0
+            following = sm.following if sm else 0
+            influence_score = round((followers * 0.7) + (total_engagement * 0.3 / max(1, len(captions))), 2)
+
+            geo_locations = []
+            if sm and sm.bio:
+                if "nairobi" in sm.bio.lower():
+                    geo_locations.append("Nairobi")
+                if "kenya" in sm.bio.lower():
+                    geo_locations.append("Kenya")
+
+            analysis.avg_post_time = avg_post_time
+            analysis.most_active_days = most_active_days
+            analysis.sentiment_score = sentiment_score
+            analysis.top_keywords = keyword_freq
+            analysis.geo_locations = geo_locations
+            analysis.network_size = followers + following
+            analysis.sentiment_distribution = sentiment_distribution
+            analysis.influence_score = influence_score
+            analysis.used_scrapingbee = False
+            analysis.analyzed_at = timezone.now()
+            analysis.save()
+
+            logger.info(f"✅ TikTok behavioral analysis done for {profile.username}")
+            return {"success": True, "profile": profile.username}
+
+        # =============================
+        # 🧩 GENERIC FALLBACK (Twitter, etc.)
+        # =============================
+        captions = list(posts_qs.values_list("content", flat=True))
+        sentiments, sentiment_distribution, sentiment_score = compute_sentiment_distribution(captions)
+        keyword_freq = extract_keywords(" ".join(captions))
+        avg_post_time, most_active_days = compute_posting_patterns(
+            pd.DataFrame(list(posts_qs.values("timestamp"))) if posts_qs.exists() else pd.DataFrame()
         )
-
-        # --- Keyword Extraction ---
-        hashtags = re.findall(r"#(\w+)", text_data)
-        words = re.findall(r"\b[a-zA-Z]{4,}\b", text_data.lower())
-        all_keywords = hashtags + words
-        keyword_freq = pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
-
-        # --- Network Size ---
-        sm = SocialMediaAccount.objects.filter(profile=profile).first()
         network_size = (sm.followers + sm.following) if sm else 0
 
-        # --- Geolocation ---
-        geo_locations = []
-        if sm and sm.bio:
-            if "nairobi" in sm.bio.lower():
-                geo_locations.append("Nairobi")
-            if "kenya" in sm.bio.lower():
-                geo_locations.append("Kenya")
-
-        # --- Save Generic Analysis ---
         analysis.avg_post_time = avg_post_time
         analysis.most_active_days = most_active_days
         analysis.sentiment_score = sentiment_score
         analysis.top_keywords = keyword_freq
-        analysis.geo_locations = geo_locations
+        analysis.geo_locations = []
         analysis.network_size = network_size
-        analysis.sentiment_distribution = sentiment_distribution  # optional JSONField
-        analysis.used_scrapingbee = used_scrapingbee
+        analysis.sentiment_distribution = sentiment_distribution
+        analysis.influence_score = round(network_size * (sentiment_score + 1), 2)
         analysis.analyzed_at = timezone.now()
         analysis.save()
 
-        logger.info(f"✅ Behavioral analysis completed for {profile.username}")
+        logger.info(f"✅ Generic behavioral analysis done for {profile.username}")
         return {"success": True, "profile": profile.username}
 
     except Exception as e:
         logger.exception(f"Behavioral analysis failed for profile {profile_id}: {e}")
         return {"success": False, "error": str(e)}
+
+
