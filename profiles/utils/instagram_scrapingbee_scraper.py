@@ -88,20 +88,30 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
                         .get("edges", [{}])[0]
                         .get("node", {})
                         .get("text", "")
-                    )
+                    ) or ""
                     likes = node_data.get("edge_liked_by", {}).get("count", 0)
                     comments = node_data.get("edge_media_to_comment", {}).get("count", 0)
-                    sentiment = round(TextBlob(caption).sentiment.polarity, 2)
+                    # ✅ real timestamp
+                    timestamp_unix = node_data.get("taken_at_timestamp")
+                    if timestamp_unix:
+                       from datetime import datetime
+                       timestamp = datetime.fromtimestamp(timestamp_unix, tz=timezone.utc)
+                    else:
+                        timestamp = timezone.now()
+
+                   # ✅ clean caption & compute sentiment
+                    clean_caption = re.sub(r"[^\x00-\x7F]+", " ", caption)
+                    sentiment = round(TextBlob(clean_caption).sentiment.polarity, 2)
 
                     RawPost.objects.update_or_create(
                         profile=db_profile,
                         content=caption[:500],
                         platform="Instagram",
+                        timestamp=timestamp,
                         defaults={
                             "likes": likes,
                             "comments": comments,
                             "sentiment_score": sentiment,
-                            "timestamp": timezone.now(),
                         },
                     )
                     captions.append((caption, sentiment))
