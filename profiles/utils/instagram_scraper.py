@@ -11,7 +11,13 @@ from textblob import TextBlob
 logger = logging.getLogger(__name__)
 def get_instaloader() -> instaloader.Instaloader:
     """Initialize Instaloader and load session automatically from local file or env."""
-    L = instaloader.Instaloader()
+    L = instaloader.Instaloader(
+        download_videos=False,
+        download_comments=False,
+        save_metadata=False,
+        compress_json=False,
+        quiet=True,
+    )
     session_loaded = False
 
     try:
@@ -93,26 +99,30 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
                 break
             caption = post.caption or ""
             timestamp = post.date_utc or timezone.now()
+            likes = getattr(post, "likes", 0)
+            comments = getattr(post, "comments", 0)
 
-            # Sentiment analysis
-            sentiment = round(TextBlob(caption).sentiment.polarity, 3) if caption else 0.0
+            # Clean caption text and compute sentiment
+            clean_caption = caption.replace("\n", " ").strip()
+            sentiment = round(TextBlob(clean_caption).sentiment.polarity, 3) if caption else 0.0
+            
             RawPost.objects.update_or_create(
                 profile=db_profile,
-                platform="Instagram",
-                post_id=post.shortcode, 
+                platform="Instagram", 
                 defaults={
                     "content": caption[:500],
                     "timestamp": timestamp,
-                    "likes": post.likes,
-                    "comments": post.comments,
+                    "likes": likes,
+                    "comments": comments,
                     "sentiment_score": sentiment,
                 },
+                 post_id=post.shortcode,
             )
             posts_saved.append({
                 "post_id": post.shortcode,
-                "caption": caption[:100],
-                "likes": post.likes,
-                "comments": post.comments,
+                "caption": clean_caption[:120],
+                "likes": likes,
+                "comments": comments,
                 "sentiment": sentiment,
                 "timestamp": timestamp.strftime("%Y-%m-%d %H:%M"),
             })
