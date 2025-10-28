@@ -28,7 +28,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         "render_js": "true",
         "stealth_proxy": "true",       # ✅ Force stealth
         "block_resources": "true",
-        "wait": "5000",
+       ## "wait": "5000",
         "wait_browser": "networkidle",
     }
 
