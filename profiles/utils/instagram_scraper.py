@@ -1,16 +1,20 @@
-# raw scraping logic (API calls, parsing, return dicts)
 import logging
 import instaloader
 import os
 import tempfile
-from profiles.models import Profile, RawPost, SocialMediaAccount
 from django.conf import settings
 from django.utils import timezone
 from textblob import TextBlob
+from profiles.models import Profile, RawPost, SocialMediaAccount
 
 logger = logging.getLogger(__name__)
+
+
+# =========================================================
+#  Session Loader
+# =========================================================
 def get_instaloader() -> instaloader.Instaloader:
-    """Initialize Instaloader and load session automatically from local file or env."""
+    """Initialize Instaloader with session from file or environment."""
     L = instaloader.Instaloader(
         download_videos=False,
         download_comments=False,
@@ -18,97 +22,130 @@ def get_instaloader() -> instaloader.Instaloader:
         compress_json=False,
         quiet=True,
     )
-    session_loaded = False
 
+    session_loaded = False
     try:
-        # Try to load local session (for development)
+        # 1️⃣ Load local session for development
         if hasattr(settings, "SESSION_FILE") and os.path.exists(settings.SESSION_FILE):
             L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
-            logging.info("💻 Loaded local Instagram session file.")
+            logger.info("💻 Loaded local Instagram session file.")
             session_loaded = True
 
-        # Fallback to environment session (for Render)
+        # 2️⃣ Load from environment for production (Render)
         elif os.getenv("INSTAGRAM_SESSION_DATA"):
             session_data = os.getenv("INSTAGRAM_SESSION_DATA")
             tmpfile = tempfile.NamedTemporaryFile(delete=False)
             tmpfile.write(session_data.encode())
             tmpfile.close()
             L.load_session_from_file("iamcarolgitonga", filename=tmpfile.name)
-            logging.info(" Loaded Instagram session from environment variable.")
+            logger.info("🔐 Loaded Instagram session from environment.")
             session_loaded = True
 
         if not session_loaded:
-            logging.warning(" No Instagram session available. You may hit login errors.")
+            logger.warning("⚠️ No Instagram session found. Anonymous scraping may be limited.")
 
     except Exception as e:
-        logging.exception(f" Failed to load Instagram session: {e}")
+        logger.exception(f"❌ Failed to load Instagram session: {e}")
 
     return L
 
 
-def scrape_instagram_profile(username: str) -> dict | None:
+# =========================================================
+#  Profile Scraper
+# =========================================================
+def scrape_instagram_profile(username: str, max_posts: int = 10) -> dict | None:
+    """
+    Scrape full Instagram profile info including latest posts.
+    Returns a dictionary with user data + posts list.
+    """
     try:
-        # Initialize Instaloader
-        L = instaloader.Instaloader()
-        # Fetch the target user profile
+        L = get_instaloader()
         profile = instaloader.Profile.from_username(L.context, username)
 
-        # Try HD picture first, fallback to normal
+        # --- Profile metadata ---
         try:
             profile_pic_url = str(profile.profile_pic_url)
         except AttributeError:
-            logging.warning(f"No profile picture found for {username}")
             profile_pic_url = None
+            logger.warning(f"No profile picture found for {username}")
 
-        return {
-            'full_name': profile.full_name,
-            'bio': profile.biography,
-            'followers': profile.followers,
-            'following': profile.followees,
-            'posts': profile.mediacount,
-            'is_verified': profile.is_verified,
-            'external_url': profile.external_url,
-           "profile_pic_url": profile_pic_url,
-            }
-    except instaloader.exceptions.ProfileNotExistsException:
-        logging.warning(f"Instagram profile '{username}' not found.")
-        return None
-    
-    except Exception as e:
-        logging.exception(f"Error scraping Instagram for {username}: {e}")
-        return None
-
-def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
-    """
-    Fetch recent Instagram posts for a given user and save to RawPost.
-    Each post includes caption, likes, comments, and timestamp.
-    """
-    posts_saved = []
-    try:
-        L = instaloader.Instaloader()
-        profile = instaloader.Profile.from_username(L.context, username)
-
-        db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
-        if not db_profile:
-            logger.warning(f"No Profile found for {username} — skipping post save.")
-            return []
-        
+        # --- Collect recent posts ---
+        posts_data = []
         count = 0
         for post in profile.get_posts():
             if count >= max_posts:
                 break
+
             caption = post.caption or ""
-            timestamp = post.date_utc or timezone.now()
             likes = getattr(post, "likes", 0)
             comments = getattr(post, "comments", 0)
+            timestamp = post.date_utc or timezone.now()
 
-            # Clean caption text and compute sentiment
-            clean_caption = caption.replace("\n", " ").strip()
-            sentiment = round(TextBlob(clean_caption).sentiment.polarity, 3) if caption else 0.0
-            
+            sentiment = round(TextBlob(caption).sentiment.polarity, 3) if caption else 0.0
+
+            posts_data.append({
+                "post_id": post.shortcode,
+                "caption": caption[:120],
+                "likes": likes,
+                "comments": comments,
+                "sentiment": sentiment,
+                "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+            count += 1
+
+        logger.info(f"✅ Scraped {len(posts_data)} posts for {username}")
+
+        return {
+            "full_name": profile.full_name,
+            "bio": profile.biography,
+            "followers": profile.followers,
+            "following": profile.followees,
+            "posts": posts_data,  # ✅ fixed: now a list, not an int
+            "is_verified": profile.is_verified,
+            "external_url": profile.external_url,
+            "profile_pic_url": profile_pic_url,
+        }
+
+    except instaloader.exceptions.ProfileNotExistsException:
+        logger.warning(f"Instagram profile '{username}' not found.")
+        return None
+    except Exception as e:
+        logger.exception(f"Error scraping Instagram for {username}: {e}")
+        return None
+
+
+# =========================================================
+#  Save Posts to Database (Optional standalone)
+# =========================================================
+def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
+    """
+    Fetch recent Instagram posts and save them to RawPost.
+    """
+    posts_saved = []
+    try:
+        L = get_instaloader()
+        profile = instaloader.Profile.from_username(L.context, username)
+        db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
+
+        if not db_profile:
+            logger.warning(f"No Profile found for {username} — skipping post save.")
+            return []
+
+        count = 0
+        for post in profile.get_posts():
+            if count >= max_posts:
+                break
+
+            caption = (post.caption or "").replace("\n", " ").strip()
+            likes = getattr(post, "likes", 0)
+            comments = getattr(post, "comments", 0)
+            timestamp = post.date_utc or timezone.now()
+            sentiment = round(TextBlob(caption).sentiment.polarity, 3) if caption else 0.0
+
             RawPost.objects.update_or_create(
                 profile=db_profile,
-                platform="Instagram", 
+                platform="Instagram",
+                post_id=post.shortcode,
                 defaults={
                     "content": caption[:500],
                     "timestamp": timestamp,
@@ -116,11 +153,11 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
                     "comments": comments,
                     "sentiment_score": sentiment,
                 },
-                 post_id=post.shortcode,
             )
+
             posts_saved.append({
                 "post_id": post.shortcode,
-                "caption": clean_caption[:120],
+                "caption": caption[:120],
                 "likes": likes,
                 "comments": comments,
                 "sentiment": sentiment,
@@ -130,7 +167,6 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
 
         logger.info(f"✅ Saved {len(posts_saved)} Instagram posts for {username}")
         return posts_saved
-        
 
     except instaloader.exceptions.ConnectionException as e:
         logger.warning(f"Connection error fetching posts for {username}: {e}")
@@ -139,16 +175,18 @@ def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
         logger.exception(f"Error scraping posts for {username}: {e}")
         return []
 
-    
 
+# =========================================================
+#  Unscrape / Cleanup
+# =========================================================
 def unscrape_instagram_profile(username: str) -> bool:
-    """Removes stored Instagram profile and associated social data."""
+    """Delete profile and related Instagram data from DB."""
     try:
         profile = Profile.objects.get(username=username, platform="Instagram")
         SocialMediaAccount.objects.filter(profile=profile, platform="Instagram").delete()
         RawPost.objects.filter(profile=profile, platform="Instagram").delete()
         profile.delete()
-        logger.info(f"Removed Instagram profile and posts for {username}")
+        logger.info(f"🧹 Removed Instagram profile and posts for {username}")
         return True
     except Profile.DoesNotExist:
         return False
