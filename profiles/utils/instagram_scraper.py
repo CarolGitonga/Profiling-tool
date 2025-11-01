@@ -7,6 +7,9 @@ from django.utils import timezone
 from textblob import TextBlob
 from profiles.models import Profile, RawPost, SocialMediaAccount
 
+# ✅ Import your ScrapingBee fallback
+from profiles.utils.instagram_scrapingbee_scraper import scrape_instagram_posts_scrapingbee
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,13 +28,13 @@ def get_instaloader() -> instaloader.Instaloader:
 
     session_loaded = False
     try:
-        # 1️⃣ Load local session for development
+        # 1️⃣ Load local session
         if hasattr(settings, "SESSION_FILE") and os.path.exists(settings.SESSION_FILE):
             L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
             logger.info("💻 Loaded local Instagram session file.")
             session_loaded = True
 
-        # 2️⃣ Load from environment for production (Render)
+        # 2️⃣ Load from environment (Render)
         elif os.getenv("INSTAGRAM_SESSION_DATA"):
             session_data = os.getenv("INSTAGRAM_SESSION_DATA")
             tmpfile = tempfile.NamedTemporaryFile(delete=False)
@@ -51,12 +54,12 @@ def get_instaloader() -> instaloader.Instaloader:
 
 
 # =========================================================
-#  Profile Scraper
+#  Profile Scraper with Auto-Fallback
 # =========================================================
 def scrape_instagram_profile(username: str, max_posts: int = 10) -> dict | None:
     """
     Scrape full Instagram profile info including latest posts.
-    Returns a dictionary with user data + posts list.
+    Falls back to ScrapingBee if Instaloader fails (rate-limit / unauthorized).
     """
     try:
         L = get_instaloader()
@@ -69,7 +72,7 @@ def scrape_instagram_profile(username: str, max_posts: int = 10) -> dict | None:
             profile_pic_url = None
             logger.warning(f"No profile picture found for {username}")
 
-        # --- Collect recent posts ---
+        # --- Collect posts ---
         posts_data = []
         count = 0
         for post in profile.get_posts():
@@ -80,7 +83,6 @@ def scrape_instagram_profile(username: str, max_posts: int = 10) -> dict | None:
             likes = getattr(post, "likes", 0)
             comments = getattr(post, "comments", 0)
             timestamp = post.date_utc or timezone.now()
-
             sentiment = round(TextBlob(caption).sentiment.polarity, 3) if caption else 0.0
 
             posts_data.append({
@@ -93,87 +95,64 @@ def scrape_instagram_profile(username: str, max_posts: int = 10) -> dict | None:
             })
             count += 1
 
-        logger.info(f"✅ Scraped {len(posts_data)} posts for {username}")
+        logger.info(f"✅ Scraped {len(posts_data)} posts for {username} via Instaloader")
 
         return {
             "full_name": profile.full_name,
             "bio": profile.biography,
             "followers": profile.followers,
             "following": profile.followees,
-            "posts": posts_data,  # ✅ fixed: now a list, not an int
+            "posts": posts_data,  # ✅ always list
             "is_verified": profile.is_verified,
             "external_url": profile.external_url,
             "profile_pic_url": profile_pic_url,
+            "source": "instaloader",
         }
+
+    except instaloader.exceptions.ConnectionException as e:
+        msg = str(e).lower()
+        if "please wait" in msg or "401" in msg or "403" in msg or "rate" in msg:
+            logger.warning(f"🚨 Instaloader blocked or rate-limited for {username}. Using ScrapingBee fallback.")
+            return scrape_instagram_fallback(username, max_posts)
+        logger.exception(f"Instaloader connection error for {username}: {e}")
+        return None
 
     except instaloader.exceptions.ProfileNotExistsException:
         logger.warning(f"Instagram profile '{username}' not found.")
         return None
+
     except Exception as e:
         logger.exception(f"Error scraping Instagram for {username}: {e}")
-        return None
+        # Auto-fallback if anything else unexpected happens
+        return scrape_instagram_fallback(username, max_posts)
 
 
 # =========================================================
-#  Save Posts to Database (Optional standalone)
+#  Fallback Handler
 # =========================================================
-def scrape_instagram_posts(username: str, max_posts: int = 10) -> list[dict]:
+def scrape_instagram_fallback(username: str, max_posts: int = 10) -> dict:
     """
-    Fetch recent Instagram posts and save them to RawPost.
+    Use ScrapingBee to fetch Instagram posts when Instaloader fails.
+    Returns the same structure for consistency.
     """
-    posts_saved = []
     try:
-        L = get_instaloader()
-        profile = instaloader.Profile.from_username(L.context, username)
-        db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
+        posts = scrape_instagram_posts_scrapingbee(username, max_posts=max_posts)
+        logger.info(f"🐝 Fallback ScrapingBee fetched {len(posts)} posts for {username}")
 
-        if not db_profile:
-            logger.warning(f"No Profile found for {username} — skipping post save.")
-            return []
-
-        count = 0
-        for post in profile.get_posts():
-            if count >= max_posts:
-                break
-
-            caption = (post.caption or "").replace("\n", " ").strip()
-            likes = getattr(post, "likes", 0)
-            comments = getattr(post, "comments", 0)
-            timestamp = post.date_utc or timezone.now()
-            sentiment = round(TextBlob(caption).sentiment.polarity, 3) if caption else 0.0
-
-            RawPost.objects.update_or_create(
-                profile=db_profile,
-                platform="Instagram",
-                post_id=post.shortcode,
-                defaults={
-                    "content": caption[:500],
-                    "timestamp": timestamp,
-                    "likes": likes,
-                    "comments": comments,
-                    "sentiment_score": sentiment,
-                },
-            )
-
-            posts_saved.append({
-                "post_id": post.shortcode,
-                "caption": caption[:120],
-                "likes": likes,
-                "comments": comments,
-                "sentiment": sentiment,
-                "timestamp": timestamp.strftime("%Y-%m-%d %H:%M"),
-            })
-            count += 1
-
-        logger.info(f"✅ Saved {len(posts_saved)} Instagram posts for {username}")
-        return posts_saved
-
-    except instaloader.exceptions.ConnectionException as e:
-        logger.warning(f"Connection error fetching posts for {username}: {e}")
-        return []
+        return {
+            "full_name": username,   # Minimal info
+            "bio": "",
+            "followers": 0,
+            "following": 0,
+            "posts": posts or [],
+            "is_verified": False,
+            "external_url": None,
+            "profile_pic_url": None,
+            "source": "scrapingbee",
+        }
     except Exception as e:
-        logger.exception(f"Error scraping posts for {username}: {e}")
-        return []
+        logger.exception(f"❌ ScrapingBee fallback also failed for {username}: {e}")
+        return {"error": str(e), "posts": [], "source": "error"}
 
 
 # =========================================================
