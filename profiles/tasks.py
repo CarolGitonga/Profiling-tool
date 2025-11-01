@@ -195,15 +195,7 @@ def scrape_instagram_task(self, username: str) -> dict:
     
 @shared_task(bind=True, queue="default")
 def perform_behavioral_analysis(self, profile_id):
-    """
-    Analyze a user's posting behavior, language, and interests.
-    Updates the BehavioralAnalysis model for the given profile.
-
-    Supports:
-    - GitHub: Developer engagement metrics
-    - Instagram: Caption + bio sentiment, hashtags, activity
-    - TikTok: Caption sentiment, hashtags, engagement, influence
-    """
+    """Analyze user behavior, sentiment, and interests (multi-platform)."""
 
     try:
         profile = Profile.objects.get(id=profile_id)
@@ -300,7 +292,6 @@ def perform_behavioral_analysis(self, profile_id):
 
             if not captions:
                 # fallback to scrapingbee if no RawPosts
-                from profiles.utils.instagram_scrapingbee_scraper import scrape_instagram_posts_scrapingbee
                 captions = scrape_instagram_posts_scrapingbee(profile.username, max_posts=10)
                 used_scrapingbee = True
 
