@@ -43,7 +43,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
                     "premium_proxy": "true",
                     "country_code": country,
                     "block_resources": "true",
-                    "wait": "3000" 
+                    "wait": "5000" 
 
                 },
                 timeout=180,

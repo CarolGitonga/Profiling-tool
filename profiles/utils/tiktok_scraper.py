@@ -29,9 +29,9 @@ def fetch_tiktok_info(username: str) -> dict:
                 "render_js": "true",
                 "wait_browser": "networkidle",
                 "block_resources": "true",
-                "premium_proxy": "true",
-                "stealth_proxy": "true",
                 "device": "desktop",
+                "country_code": "us"
+
             },
             headers={
                 "User-Agent": (
