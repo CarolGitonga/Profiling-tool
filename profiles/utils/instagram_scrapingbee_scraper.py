@@ -24,7 +24,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
 
     client = ScrapingBeeClient(api_key=api_key)
     target_url = f"https://www.instagram.com/{username}/"
-    country_codes = ["us", "fr", "de"]
+    country_codes = ["us", "fr", "de", "ke"]
     captions = []
 
     db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
@@ -42,7 +42,8 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
                     "render_js": "true",
                     "premium_proxy": "true",
                     "country_code": country,
-                    "block_resources": "true"
+                    "block_resources": "true",
+                    "wait": "3000" 
 
                 },
                 timeout=180,
