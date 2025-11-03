@@ -1,4 +1,4 @@
-import os, re, requests, logging, json
+import os, re, requests, logging, json, urllib.parse
 from bs4 import BeautifulSoup
 from django.conf import settings
 from django.utils import timezone
@@ -19,16 +19,18 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         logger.error("❌ SCRAPINGBEE_API_KEY not found in settings.")
         return []
 
-    proxy_url = "https://app.scrapingbee.com/api/v1/"
     target_url = f"https://www.instagram.com/{username}/"
+    encoded_url = urllib.parse.quote_plus(target_url)
+    proxy_url = "https://app.scrapingbee.com/api/v1/"
 
     # ✅ Initial parameters
     params = {
         "api_key": api_key,
-        "url": target_url,
+        "url": encoded_url,               
         "render_js": "true",
-        ## "stealth_proxy": "true",          # Force stealth first
+        "stealth_proxy": "true",          # Force stealth first
         "premium_proxy": "true", 
+        "country_code": "ke",
         "block_resources": "true",
         "wait_browser": "networkidle",    # ✅ use only this one
     }
