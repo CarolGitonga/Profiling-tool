@@ -20,7 +20,6 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         return []
 
     target_url = f"https://www.instagram.com/{username}/"
-    encoded_url = urllib.parse.quote_plus(target_url)
     proxy_url = "https://app.scrapingbee.com/api/v1/"
 
     # ✅ Initial parameters
