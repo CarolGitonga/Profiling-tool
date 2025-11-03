@@ -61,8 +61,20 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         }
 
         try:
+            query = (
+                 f"{proxy_url}?api_key={api_key}"
+               f"&url={target_url}"
+               f"&render_js=true"
+               f"&stealth_proxy=true"
+               f"&premium_proxy=true"
+               f"&country_code={country}"
+              f"&block_resources=true"
+              f"&wait_browser=networkidle"
+            )
+            
             logger.info(f"🌍 [{country.upper()}] Fetching Instagram for {username}...")
-            response = requests.get(proxy_url, params=params, headers=headers, timeout=180)
+            logger.debug(f"🔍 Final ScrapingBee request URL: {query}")
+            response = requests.get(query, headers=headers, timeout=180)
 
             if response.status_code == 429:
                 logger.warning(f"⚠️ Rate limit hit in {country.upper()}. Retrying next proxy...")
