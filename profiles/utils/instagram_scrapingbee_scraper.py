@@ -1,7 +1,7 @@
 import re
 import json
 import logging
-import requests
+import requests, urllib.parse
 from bs4 import BeautifulSoup
 from datetime import datetime
 from textblob import TextBlob
@@ -51,7 +51,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
     for country in country_codes:
         params = {
             "api_key": api_key,
-            "url": target_url,               # ⚠️ RAW URL (no encoding)
+            "url": urllib.parse.unquote(target_url),
             "render_js": "true",
             "stealth_proxy": "true",
             "premium_proxy": "true",
