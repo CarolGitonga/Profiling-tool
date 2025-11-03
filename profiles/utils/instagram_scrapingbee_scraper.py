@@ -1,22 +1,20 @@
-import re
-import json
-import logging
-import requests, urllib.parse
+import logging, json, re
 from bs4 import BeautifulSoup
 from datetime import datetime
 from textblob import TextBlob
 from django.conf import settings
 from django.utils import timezone
+from scrapingbee import ScrapingBeeClient
 from profiles.models import Profile, RawPost
 
 logger = logging.getLogger(__name__)
 
 def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
     """
-    🐝 Scrape public Instagram posts using ScrapingBee.
-    - Uses stealth + premium proxies automatically
-    - Retries gracefully across proxies and timeouts
-    - Saves captions, likes, comments, timestamps, and sentiment into RawPost
+    🐝 Instagram scraping with ScrapingBee official client.
+    - Automatically handles URL encoding and rendering
+    - Uses premium proxy & fallback regions
+    - Extracts captions, likes, comments, timestamps, and sentiment
     """
 
     api_key = getattr(settings, "SCRAPINGBEE_API_KEY", None)
@@ -24,83 +22,47 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
         logger.error("❌ SCRAPINGBEE_API_KEY missing from Django settings.")
         return []
 
-    proxy_url = "https://app.scrapingbee.com/api/v1/"
+    client = ScrapingBeeClient(api_key=api_key)
     target_url = f"https://www.instagram.com/{username}/"
-
-    # Rotate countries if one is blocked or 500s
     country_codes = ["us", "fr", "de"]
     captions = []
-    db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
 
+    db_profile = Profile.objects.filter(username=username, platform="Instagram").first()
     if not db_profile:
         logger.warning(f"⚠️ No Profile found for {username}. Skipping save.")
         return []
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-
-    # --------------------------------------------
-    #  STEP 1: Try ScrapingBee with fallback logic
-    # --------------------------------------------
     for country in country_codes:
-        params = {
-            "api_key": api_key,
-            "url": urllib.parse.unquote(target_url),
-            "render_js": "true",
-            "stealth_proxy": "true",
-            "premium_proxy": "true",
-            "country_code": country,
-            "block_resources": "true",
-            "wait_browser": "networkidle",
-        }
-
         try:
-            query = (
-                 f"{proxy_url}?api_key={api_key}"
-               f"&url={target_url}"
-               f"&render_js=true"
-               f"&stealth_proxy=true"
-               f"&premium_proxy=true"
-               f"&country_code={country}"
-              f"&block_resources=true"
-              f"&wait_browser=networkidle"
-            )
-            
             logger.info(f"🌍 [{country.upper()}] Fetching Instagram for {username}...")
-            logger.debug(f"🔍 Final ScrapingBee request URL: {query}")
-            response = requests.get(query, headers=headers, timeout=180)
+
+            response = client.get(
+                target_url,
+                params={
+                    "render_js": True,
+                    "premium_proxy": True,
+                    "country_code": country,
+                    "block_resources": True,
+                    "wait_browser": "networkidle",
+                },
+                timeout=180,
+            )
 
             if response.status_code == 429:
-                logger.warning(f"⚠️ Rate limit hit in {country.upper()}. Retrying next proxy...")
+                logger.warning(f"⚠️ Rate limit reached for {country.upper()}. Retrying next region...")
+                continue
+            if not response.ok:
+                logger.warning(f"❌ ScrapingBee failed ({response.status_code}) for {country.upper()}")
                 continue
 
-            if response.status_code in (403, 500):
-                logger.warning(f"⚠️ Proxy {country.upper()} blocked or failed ({response.status_code}). Trying next...")
-                continue
-
-            if response.status_code == 400:
-                logger.error(f"❌ Bad Request: Likely double-encoded URL. Check params.")
-                logger.debug(f"Request URL: {response.url}")
-                continue
-
-            response.raise_for_status()
-
-            html = response.text
+            html = response.content.decode("utf-8", errors="ignore")
             if "login" in html.lower() or "challenge" in html.lower():
-                logger.warning(f"⚠️ {username}: Login challenge or cookie wall detected in {country.upper()}.")
+                logger.warning(f"⚠️ Login wall detected for {username} ({country.upper()})")
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
 
-            # -------------------------------
-            #  STEP 2: Try __NEXT_DATA__ JSON
-            # -------------------------------
+            # --- Parse __NEXT_DATA__ JSON ---
             script_tag = soup.find("script", id="__NEXT_DATA__")
             if script_tag:
                 try:
@@ -132,8 +94,7 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
                         except Exception:
                             timestamp = timezone.now()
 
-                        clean_caption = re.sub(r"[^\x00-\x7F]+", " ", caption)
-                        sentiment = round(TextBlob(clean_caption).sentiment.polarity, 2)
+                        sentiment = round(TextBlob(re.sub(r"[^\x00-\x7F]+", " ", caption)).sentiment.polarity, 2)
 
                         RawPost.objects.update_or_create(
                             profile=db_profile,
@@ -148,67 +109,15 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
                         )
                         captions.append((caption, sentiment))
 
-                    if captions:
-                        logger.info(f"✅ Saved {len(captions)} posts for {username} via __NEXT_DATA__ JSON.")
-                        return captions
+                    logger.info(f"✅ Saved {len(captions)} posts for {username} via ScrapingBeeClient.")
+                    return captions
 
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to parse __NEXT_DATA__ JSON for {username}: {e}")
+                    logger.warning(f"⚠️ Failed to parse JSON for {username}: {e}")
 
-            # -----------------------------------------------
-            #  STEP 3: Fallback to <script type='ld+json'>
-            # -----------------------------------------------
-            json_scripts = soup.find_all("script", type="application/ld+json")
-            for js in json_scripts[:max_posts]:
-                text = js.get_text(strip=True)
-                if not text:
-                    continue
-
-                caption_match = re.search(r'"caption":"(.*?)"', text)
-                likes_match = re.search(r'"interactionCount":(\d+)', text)
-                comments_match = re.search(r'"commentCount":(\d+)', text)
-                time_match = re.search(r'"uploadDate":"([^"]+)"', text)
-
-                caption = caption_match.group(1) if caption_match else ""
-                likes = int(likes_match.group(1)) if likes_match else 0
-                comments = int(comments_match.group(1)) if comments_match else 0
-
-                try:
-                    timestamp = (
-                        datetime.fromisoformat(time_match.group(1).replace("Z", "+00:00"))
-                        if time_match
-                        else timezone.now()
-                    )
-                except Exception:
-                    timestamp = timezone.now()
-
-                sentiment = round(TextBlob(caption).sentiment.polarity, 2)
-
-                RawPost.objects.update_or_create(
-                    profile=db_profile,
-                    content=caption[:500],
-                    platform="Instagram",
-                    timestamp=timestamp,
-                    defaults={
-                        "likes": likes,
-                        "comments": comments,
-                        "sentiment_score": sentiment,
-                    },
-                )
-                captions.append((caption, sentiment))
-
-            if captions:
-                logger.info(f"✅ Saved {len(captions)} posts for {username} via fallback JSON ({country.upper()}).")
-                return captions
-
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logger.warning(f"⚠️ {country.upper()} proxy failed for {username}: {e}")
             continue
 
-        except Exception as e:
-            logger.exception(f"❌ Unexpected error scraping {username} via {country.upper()}: {e}")
-            continue
-
-    # If all proxies failed
-    logger.error(f"❌ All ScrapingBee proxies failed for {username}.")
+    logger.error(f"❌ All ScrapingBee regions failed for {username}.")
     return captions
