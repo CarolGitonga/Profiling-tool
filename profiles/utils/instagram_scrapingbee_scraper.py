@@ -39,11 +39,11 @@ def scrape_instagram_posts_scrapingbee(username: str, max_posts: int = 10):
             response = client.get(
                 target_url,
                 params={
-                    "render_js": True,
-                    "premium_proxy": True,
+                    "render_js": "true",
+                    "premium_proxy": "true",
                     "country_code": country,
-                    "block_resources": True,
-                    "wait_browser": "networkidle",
+                    "block_resources": "true"
+
                 },
                 timeout=180,
             )
