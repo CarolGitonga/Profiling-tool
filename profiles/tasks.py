@@ -1,6 +1,8 @@
 import logging
 from celery import shared_task
 from django.db import transaction
+
+from profiles.utils.twitter_scrapingbee_scraper import scrape_twitter_profile
 from .utils.tiktok_scraper import scrape_tiktok_profile
 from .utils.instagram_scraper import scrape_instagram_profile
 from .models import BehavioralAnalysis, Profile, RawPost, SocialMediaAccount
@@ -17,6 +19,90 @@ logger = logging.getLogger(__name__)
 def ensure_behavioral_record(profile):
     """Ensure a BehavioralAnalysis record exists for the given profile."""
     BehavioralAnalysis.objects.get_or_create(profile=profile)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="twitter")
+def scrape_twitter_task(self, username: str) -> dict:
+    """
+    Celery task: Scrape Twitter profile via ScrapingBee and save to DB.
+    Retries automatically on transient errors (network, rate limit).
+    """
+    try:
+        result = scrape_twitter_profile(username)
+
+        profile_data = result.get("profile", {})
+        posts = result.get("recent_posts", [])
+
+        # Handle scrape errors
+        if "error" in profile_data:
+            reason = profile_data["error"]
+            logger.warning(f"Twitter scrape failed for {username}: {reason}")
+            raise Exception(reason)
+
+        # --- Save Profile ---
+        profile, _ = Profile.objects.get_or_create(
+            username=username,
+            platform="Twitter",
+        )
+        profile.full_name = profile_data.get("username", username)
+        profile.avatar_url = profile_data.get("profile_image")
+        profile.save()
+
+        # --- Save SocialMediaAccount ---
+        SocialMediaAccount.objects.update_or_create(
+            profile=profile,
+            platform="Twitter",
+            defaults={
+                "bio": profile_data.get("description", ""),
+                "followers": 0,  # Twitter follower count not easily parsed from og:meta
+                "following": 0,
+                "posts_collected": len(posts),
+                "is_private": False,
+                "external_url": profile_data.get("url"),
+            },
+        )
+
+        # --- Save Raw Tweets ---
+        saved_count = 0
+        for tweet in posts:
+            caption = tweet.get("text", "")
+            timestamp = tweet.get("timestamp", timezone.now())
+            sentiment = round(TextBlob(caption).sentiment.polarity, 2)
+
+            RawPost.objects.update_or_create(
+                profile=profile,
+                content=caption[:500],
+                platform="Twitter",
+                defaults={
+                    "likes": 0,  # optional: ScrapingBee doesn’t easily expose this
+                    "comments": 0,
+                    "sentiment_score": sentiment,
+                    "timestamp": timestamp,
+                },
+            )
+            saved_count += 1
+
+        logger.info(f"✅ Saved {saved_count} tweets for {username}")
+
+        # --- Behavioral Analysis ---
+        ensure_behavioral_record(profile)
+        perform_behavioral_analysis.delay(profile.id)
+        logger.info(f"✅ Behavioral record ensured for {username} (Twitter)")
+
+        return {"success": True, "username": username, "platform": "Twitter"}
+
+    except Exception as e:
+        logger.exception(f"Twitter scraping error for {username}")
+        try:
+            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+        except self.MaxRetriesExceededError:
+            logger.error(f"Max retries exceeded for Twitter scrape: {username}")
+            return {
+                "success": False,
+                "username": username,
+                "platform": "Twitter",
+                "reason": str(e),
+            }
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="tiktok")
