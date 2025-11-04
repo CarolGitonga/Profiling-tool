@@ -21,7 +21,7 @@ from profiles.tasks import (
 from profiles.utils.github_scraper import scrape_github_profile, unscrape_github_profile
 from profiles.utils.instagram_scraper import unscrape_instagram_profile
 from profiles.utils.tiktok_scraper import unscrape_tiktok_profile
-from profiles.utils.twitter_scraper import unscrape_twitter_profile
+from profiles.utils.twitter_scraper import unscrape_twitter_bio
 from profiles.utils.wordcloud import generate_wordcloud
 from sherlock.utils import run_sherlock
 from .models import Profile, RawPost, SocialMediaAccount
@@ -136,7 +136,7 @@ def search_profile(request):
 # 🗑️ DELETE VIEWS
 # ==========================
 def delete_twitter_data(request, username):
-    success = unscrape_twitter_profile(username)
+    success = unscrape_twitter_bio(username)
     if success:
         messages.success(request, "Twitter data removed successfully.")
     else:
