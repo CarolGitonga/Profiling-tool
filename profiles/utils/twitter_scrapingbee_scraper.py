@@ -5,13 +5,25 @@ from datetime import datetime, timezone
 from scrapingbee import ScrapingBeeClient
 from django.conf import settings
 
+# ---------------------------------------------------------------------
+# ✅ Public exports
+# ---------------------------------------------------------------------
+__all__ = [
+    "scrape_twitter_profile",
+    "fetch_twitter_profile",
+    "fetch_twitter_posts",
+]
+
+# ---------------------------------------------------------------------
+# ✅ Setup
+# ---------------------------------------------------------------------
 logger = logging.getLogger(__name__)
 
-# --- API Setup ---
 SCRAPINGBEE_API_KEY = os.getenv(
     "SCRAPINGBEE_API_KEY",
     getattr(settings, "SCRAPINGBEE_API_KEY", None)
 )
+
 BASE_TWITTER_URL = "https://twitter.com/{}"
 
 
@@ -51,7 +63,7 @@ def fetch_twitter_profile(username: str) -> dict:
                 "wait": "6000",
                 "block_resources": "false",
             },
-            extract_rules=extract_rules,  # ✅ Must be a dict, not stringified JSON
+            extract_rules=extract_rules,  # ✅ Must be a dict, not JSON string
         )
 
         if response.status_code != 200:
