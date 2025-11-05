@@ -36,17 +36,20 @@ def fetch_twitter_profile(username: str) -> dict:
     regions = ["US", "FR", "DE"]
     target_url = BASE_TWITTER_URL.format(username)
 
-    extract_rules = '{"username": "meta[property=\'og:title\']::attr(content)", "bio": "meta[property=\'og:description\']::attr(content)", "avatar_url": "meta[property=\'og:image\']::attr(content)"}'
 
     for region in regions:
         try:
             response = client.get(
                 target_url,
                 params={
-                    "extract_rules": extract_rules,  # ✅ Pass as raw JSON string
                     "render_js": "true",
                     "country_code": region,
                     "wait": "6000",
+                },
+                extract_rules = {
+                    "username": "meta[property='og:title']::attr(content)",
+                    "bio": "meta[property='og:description']::attr(content)",
+                     "avatar_url": "meta[property='og:image']::attr(content)",
                 },
             )
 
@@ -85,17 +88,25 @@ def fetch_twitter_posts(username: str, limit: int = 10) -> list:
     regions = ["US", "FR", "DE"]
     target_url = BASE_TWITTER_URL.format(username)
 
-    extract_rules = '{"tweets": {"_items": "article[data-testid=\'tweet\']", "text": "div[lang]::text", "timestamp": "time::attr(datetime)", "likes": "div[data-testid=\'like\'] span::text", "comments": "div[data-testid=\'reply\'] span::text"}}'
 
     for region in regions:
         try:
             response = client.get(
                 target_url,
                 params={
-                    "extract_rules": extract_rules,  # ✅ raw string JSON
                     "render_js": "true",
                     "country_code": region,
                     "wait": "7000",
+                },
+                extract_rules = {
+                    "tweets": {
+                        "_items": "article[data-testid='tweet']",
+                        "text": "div[lang]::text",
+                        "timestamp": "time::attr(datetime)",
+                        "likes": "div[data-testid='like'] span::text",
+                        "comments": "div[data-testid='reply'] span::text",
+                   }
+
                 },
             )
 
