@@ -183,26 +183,29 @@ def task_status(request, task_id):
 # 📈 DASHBOARD
 # ==========================
 def profile_dashboard(request, pk):
+    """Unified dashboard across all platforms."""
     profile = get_object_or_404(Profile, pk=pk)
-    accounts = SocialMediaAccount.objects.filter(profile=profile)
+
+    # 🔹 All profiles by this username (cross-platform view)
+    profiles = Profile.objects.filter(username=profile.username)
+    accounts = SocialMediaAccount.objects.filter(profile__in=profiles)
     sherlock_results = []
     wordcloud_image = None
 
-    # --- WordCloud for Sherlock ---
+    # --- WordCloud logic ---
     if profile.platform == "Sherlock":
         sherlock_results = request.session.get("sherlock_results", [])
         text_data = " ".join([res["platform"] for res in sherlock_results])
-        if text_data:
-            wordcloud_image = generate_wordcloud(text_data)
     else:
         text_data = " ".join(
             [acc.bio or "" for acc in accounts] +
             [profile.full_name or "", profile.username]
         )
-        if text_data.strip():
-            wordcloud_image = generate_wordcloud(text_data)
 
-    # --- Platform distribution across ALL profiles ---
+    if text_data.strip():
+        wordcloud_image = generate_wordcloud(text_data)
+
+    # --- Analytics ---
     platform_counts = (
         Profile.objects.values("platform")
         .annotate(count=Count("id"))
@@ -211,17 +214,16 @@ def profile_dashboard(request, pk):
     chart_labels = [p["platform"] for p in platform_counts]
     chart_data = [p["count"] for p in platform_counts]
 
-    # --- Average followers per platform ---
     bar_labels = ["Twitter", "Instagram", "TikTok", "GitHub"]
-    bar_data = []
-    for platform in bar_labels:
-        avg_followers = (
-            SocialMediaAccount.objects.filter(platform=platform)
-            .aggregate(avg=Avg("followers"))["avg"] or 0
+    bar_data = [
+        round(
+            SocialMediaAccount.objects.filter(platform=p)
+            .aggregate(avg=Avg("followers"))["avg"] or 0,
+            2
         )
-        bar_data.append(round(avg_followers, 2))
+        for p in bar_labels
+    ]
 
-    # --- Growth over time ---
     growth = (
         Profile.objects.annotate(month=TruncMonth("date_profiled"))
         .values("month")
@@ -232,8 +234,9 @@ def profile_dashboard(request, pk):
     growth_data = [g["count"] for g in growth]
 
     context = {
-        "profile": profile,
-        "accounts": accounts,
+        "profile": profile,          # single profile for header
+        "profiles": profiles,        # list of all profiles for loop
+        "accounts": accounts,        # all SocialMediaAccount objects
         "sherlock_results": sherlock_results,
         "wordcloud_image": wordcloud_image,
         "chart_labels": json.dumps(chart_labels),
@@ -245,103 +248,3 @@ def profile_dashboard(request, pk):
     }
 
     return render(request, "profiles/dashboard.html", context)
-
-
-# ==========================
-# 🧠 BEHAVIORAL DASHBOARD
-# ==========================
-WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-WEEKDAY_INDEX = {d: i for i, d in enumerate(WEEKDAYS)}
-
-
-def behavioral_dashboard(request, username, platform):
-    """Platform-specific behavioral dashboard."""
-    profile = (
-        Profile.objects
-        .filter(username=username, platform=platform)
-        .order_by("-date_profiled")
-        .first()
-    )
-    if not profile:
-        raise Http404(f"No profile found for {username} on {platform}")
-
-    social = SocialMediaAccount.objects.filter(profile=profile, platform=platform).first()
-    analysis = getattr(profile, "behavior_analysis", None)
-    posts_qs = RawPost.objects.filter(profile=profile, platform=platform).order_by("timestamp")
-    posts = list(posts_qs.values("timestamp", "likes", "comments", "sentiment_score", "content"))
-
-    # Sentiment timeline
-    sentiment_labels, sentiment_values = [], []
-    for p in posts:
-        if p["timestamp"] and p["sentiment_score"] is not None:
-            sentiment_labels.append(p["timestamp"].strftime("%b %d"))
-            sentiment_values.append(round(p["sentiment_score"], 3))
-
-    # Engagement timeline
-    engagement_labels, engagement_values = [], []
-    for p in posts:
-        if p["timestamp"]:
-            engagement_labels.append(p["timestamp"].strftime("%b %d"))
-            likes = int(p.get("likes") or 0)
-            comments = int(p.get("comments") or 0)
-            engagement_values.append(likes + comments)
-
-    # Heatmap
-    heat_counter = Counter()
-    for p in posts:
-        ts = p["timestamp"]
-        if ts:
-            heat_counter[(ts.hour, ts.strftime("%A"))] += 1
-    heatmap_data = [
-        {"x": hour, "y": WEEKDAY_INDEX[wd], "v": heat_counter.get((hour, wd), 0)}
-        for wd in WEEKDAYS for hour in range(24)
-    ]
-
-    # Sentiment distribution
-    pos = sum(1 for s in sentiment_values if s > 0.1)
-    neg = sum(1 for s in sentiment_values if s < -0.1)
-    neu = max(0, len(sentiment_values) - pos - neg)
-
-    # Network metrics
-    followers = int(getattr(social, "followers", 0) or 0) if social else 0
-    following = int(getattr(social, "following", 0) or 0) if social else 0
-    network_size = followers + following
-    influence_score = getattr(analysis, "influence_score", None)
-
-    # Keyword extraction
-    top_keywords = analysis.top_keywords if analysis and analysis.top_keywords else {}
-    if not top_keywords and posts:
-        import re
-        words = []
-        for p in posts:
-            content = (p["content"] or "").lower()
-            words += re.findall(r"#(\w+)", content)
-            words += re.findall(r"\b[a-zA-Z]{4,}\b", content)
-        freq = Counter(words).most_common(20)
-        top_keywords = {k: v for k, v in freq}
-
-    captions = [p.get("content", "") for p in posts if p.get("content")]
-    bios = [s.bio for s in SocialMediaAccount.objects.filter(profile=profile) if s.bio]
-    weighted_keywords = [(k + " ") * max(int(v), 1) for k, v in top_keywords.items()]
-    combined_text = " ".join(captions + bios + weighted_keywords)
-    wordcloud_image = generate_wordcloud(combined_text) if combined_text.strip() else None
-
-    context = {
-        "profile": profile,
-        "platform": platform,
-        "social": social,
-        "analysis": analysis,
-        "network_size": network_size,
-        "followers": followers,
-        "following": following,
-        "influence_score": influence_score,
-        "sentiment_pie": json.dumps([pos, neu, neg]),
-        "sentiment_timeline_labels": json.dumps(sentiment_labels),
-        "sentiment_timeline_values": json.dumps(sentiment_values),
-        "engagement_labels": json.dumps(engagement_labels),
-        "engagement_values": json.dumps(engagement_values),
-        "heatmap_data": json.dumps(heatmap_data),
-        "top_keywords": top_keywords,
-        "wordcloud_image": wordcloud_image,
-    }
-    return render(request, "profiles/behavioral_dashboard.html", context)
