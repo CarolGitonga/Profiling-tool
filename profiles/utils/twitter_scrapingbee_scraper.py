@@ -9,7 +9,6 @@ __all__ = ["scrape_twitter_profile", "fetch_twitter_profile", "fetch_twitter_pos
 
 logger = logging.getLogger(__name__)
 
-# --- ScrapingBee setup ---
 SCRAPINGBEE_API_KEY = os.getenv(
     "SCRAPINGBEE_API_KEY",
     getattr(settings, "SCRAPINGBEE_API_KEY", None)
@@ -26,30 +25,28 @@ def _get_client():
 
 
 # ---------------------------------------------------------------------
-# 1️⃣ FETCH PROFILE METADATA (aligned with docs)
+# 1️⃣ FETCH PROFILE
 # ---------------------------------------------------------------------
 def fetch_twitter_profile(username: str) -> dict:
-    """Fetch basic Twitter profile info with region fallback."""
+    """Fetch Twitter profile metadata (multi-region fallback)."""
     client = _get_client()
     if not client:
         return {"error": "Missing API key"}
 
-    regions = ["US", "FR", "DE"]  # fallback countries
+    regions = ["US", "FR", "DE"]
+    target_url = BASE_TWITTER_URL.format(username)
+
+    extract_rules = '{"username": "meta[property=\'og:title\']::attr(content)", "bio": "meta[property=\'og:description\']::attr(content)", "avatar_url": "meta[property=\'og:image\']::attr(content)"}'
+
     for region in regions:
-        target_url = BASE_TWITTER_URL.format(username)
         try:
             response = client.get(
                 target_url,
                 params={
-                    # ✅ The official ScrapingBee syntax: stringified extract_rules
-                    "extract_rules": json.dumps({
-                        "username": "meta[property='og:title']::attr(content)",
-                        "bio": "meta[property='og:description']::attr(content)",
-                        "avatar_url": "meta[property='og:image']::attr(content)",
-                    }),
+                    "extract_rules": extract_rules,  # ✅ Pass as raw JSON string
                     "render_js": "true",
                     "country_code": region,
-                    "wait": "5000",
+                    "wait": "6000",
                 },
             )
 
@@ -77,30 +74,25 @@ def fetch_twitter_profile(username: str) -> dict:
 
 
 # ---------------------------------------------------------------------
-# 2️⃣ FETCH RECENT POSTS
+# 2️⃣ FETCH POSTS
 # ---------------------------------------------------------------------
 def fetch_twitter_posts(username: str, limit: int = 10) -> list:
-    """Fetch latest visible tweets for a given user."""
+    """Fetch latest tweets (public data)."""
     client = _get_client()
     if not client:
         return [{"error": "Missing API key"}]
 
     regions = ["US", "FR", "DE"]
+    target_url = BASE_TWITTER_URL.format(username)
+
+    extract_rules = '{"tweets": {"_items": "article[data-testid=\'tweet\']", "text": "div[lang]::text", "timestamp": "time::attr(datetime)", "likes": "div[data-testid=\'like\'] span::text", "comments": "div[data-testid=\'reply\'] span::text"}}'
+
     for region in regions:
-        target_url = BASE_TWITTER_URL.format(username)
         try:
             response = client.get(
                 target_url,
                 params={
-                    "extract_rules": json.dumps({
-                        "tweets": {
-                            "_items": "article[data-testid='tweet']",
-                            "text": "div[lang]::text",
-                            "timestamp": "time::attr(datetime)",
-                            "likes": "div[data-testid='like'] span::text",
-                            "comments": "div[data-testid='reply'] span::text",
-                        }
-                    }),
+                    "extract_rules": extract_rules,  # ✅ raw string JSON
                     "render_js": "true",
                     "country_code": region,
                     "wait": "7000",
@@ -114,7 +106,7 @@ def fetch_twitter_posts(username: str, limit: int = 10) -> list:
             try:
                 tweets_data = json.loads(response.content.decode("utf-8"))
             except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON in tweets for {username} ({region})")
+                logger.warning(f"Invalid JSON for {username} tweets ({region})")
                 continue
 
             tweets = tweets_data.get("tweets", [])[:limit]
