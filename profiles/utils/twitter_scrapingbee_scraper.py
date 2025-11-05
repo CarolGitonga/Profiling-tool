@@ -5,8 +5,6 @@ from datetime import datetime, timezone
 from scrapingbee import ScrapingBeeClient
 from django.conf import settings
 
-__all__ = ["scrape_twitter_profile", "fetch_twitter_profile", "fetch_twitter_posts"]
-
 logger = logging.getLogger(__name__)
 
 SCRAPINGBEE_API_KEY = os.getenv(
@@ -19,16 +17,16 @@ BASE_TWITTER_URL = "https://twitter.com/{}"
 def _get_client():
     """Initialize ScrapingBee client."""
     if not SCRAPINGBEE_API_KEY:
-        logger.error("SCRAPINGBEE_API_KEY missing in environment or settings.")
+        logger.error("SCRAPINGBEE_API_KEY missing from environment or settings.")
         return None
     return ScrapingBeeClient(api_key=SCRAPINGBEE_API_KEY)
 
 
 # ---------------------------------------------------------------------
-# 1️⃣ FETCH PROFILE
+# 1️⃣ FETCH PROFILE METADATA
 # ---------------------------------------------------------------------
 def fetch_twitter_profile(username: str) -> dict:
-    """Fetch Twitter profile metadata (multi-region fallback)."""
+    """Fetch Twitter profile metadata using ScrapingBee."""
     client = _get_client()
     if not client:
         return {"error": "Missing API key"}
@@ -36,20 +34,21 @@ def fetch_twitter_profile(username: str) -> dict:
     regions = ["US", "FR", "DE"]
     target_url = BASE_TWITTER_URL.format(username)
 
+    extract_rules = {
+        "username": "meta[property='og:title']::attr(content)",
+        "bio": "meta[property='og:description']::attr(content)",
+        "avatar_url": "meta[property='og:image']::attr(content)",
+    }
 
     for region in regions:
         try:
             response = client.get(
                 target_url,
+                extract_rules=extract_rules,  # ✅ Top-level keyword (supported in SDK 2.0.2)
                 params={
                     "render_js": "true",
                     "country_code": region,
-                    "wait": "6000",
-                },
-                extract_rules = {
-                    "username": "meta[property='og:title']::attr(content)",
-                    "bio": "meta[property='og:description']::attr(content)",
-                     "avatar_url": "meta[property='og:image']::attr(content)",
+                    "wait": "5000",
                 },
             )
 
@@ -57,12 +56,7 @@ def fetch_twitter_profile(username: str) -> dict:
                 logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for {username}")
                 continue
 
-            try:
-                data = json.loads(response.content.decode("utf-8"))
-            except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON for {username} ({region})")
-                continue
-
+            data = json.loads(response.content.decode("utf-8"))
             data["url"] = target_url
             data["region"] = region
             data["fetched_at"] = datetime.now(timezone.utc).isoformat()
@@ -77,10 +71,10 @@ def fetch_twitter_profile(username: str) -> dict:
 
 
 # ---------------------------------------------------------------------
-# 2️⃣ FETCH POSTS
+# 2️⃣ FETCH RECENT POSTS
 # ---------------------------------------------------------------------
 def fetch_twitter_posts(username: str, limit: int = 10) -> list:
-    """Fetch latest tweets (public data)."""
+    """Fetch latest visible tweets for a given user."""
     client = _get_client()
     if not client:
         return [{"error": "Missing API key"}]
@@ -88,35 +82,34 @@ def fetch_twitter_posts(username: str, limit: int = 10) -> list:
     regions = ["US", "FR", "DE"]
     target_url = BASE_TWITTER_URL.format(username)
 
+    extract_rules = {
+        "tweets": {
+            "_items": "article[data-testid='tweet']",
+            "text": "div[lang]::text",
+            "timestamp": "time::attr(datetime)",
+            "likes": "div[data-testid='like'] span::text",
+            "comments": "div[data-testid='reply'] span::text",
+        }
+    }
 
     for region in regions:
         try:
             response = client.get(
-               target_url,
-               params={
-                   "render_js": "true",
+                target_url,
+                extract_rules=extract_rules,
+                params={
+                    "render_js": "true",
                     "country_code": region,
-                    "wait": "6000",
-                    "extract_rules": json.dumps({
-                        "username": "meta[property='og:title']::attr(content)",
-                        "bio": "meta[property='og:description']::attr(content)",
-                        "avatar_url": "meta[property='og:image']::attr(content)",
-                    }),
+                    "wait": "7000",
                 },
             )
 
-
             if response.status_code != 200:
-                logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for posts of {username}")
+                logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for {username} tweets")
                 continue
 
-            try:
-                tweets_data = json.loads(response.content.decode("utf-8"))
-            except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON for {username} tweets ({region})")
-                continue
-
-            tweets = tweets_data.get("tweets", [])[:limit]
+            data = json.loads(response.content.decode("utf-8"))
+            tweets = data.get("tweets", [])[:limit]
             for t in tweets:
                 t["fetched_at"] = datetime.now(timezone.utc).isoformat()
                 t["source_url"] = target_url
