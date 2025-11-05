@@ -2,134 +2,127 @@ import os
 import json
 import logging
 from datetime import datetime, timezone
-from bs4 import BeautifulSoup
 from scrapingbee import ScrapingBeeClient
+from bs4 import BeautifulSoup
 from django.conf import settings
-import time
 
 logger = logging.getLogger(__name__)
 
-# ==========================================================
-# 🔧 CONFIGURATION
-# ==========================================================
-SCRAPINGBEE_API_KEY = os.getenv(
-    "SCRAPINGBEE_API_KEY",
-    getattr(settings, "SCRAPINGBEE_API_KEY", None)
-)
+# --- API Setup ---
+SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 BASE_TWITTER_URL = "https://twitter.com/{}"
-REGIONS = ["US", "FR", "DE"]  # fallback sequence
 
 
-# ==========================================================
-# 🧩 HELPER — Initialize client
-# ==========================================================
-def _get_client() -> ScrapingBeeClient | None:
+def _get_client():
+    """Initialize ScrapingBee client."""
     if not SCRAPINGBEE_API_KEY:
-        logger.error("Missing SCRAPINGBEE_API_KEY in environment.")
+        logger.error("❌ SCRAPINGBEE_API_KEY missing from environment or settings.")
         return None
     return ScrapingBeeClient(api_key=SCRAPINGBEE_API_KEY)
 
 
-# ==========================================================
-# 🐦 PROFILE SCRAPING
-# ==========================================================
+# ---------------------------------------------------------------------
+# 🧩 1️⃣ FETCH PROFILE METADATA
+# ---------------------------------------------------------------------
 def fetch_twitter_profile(username: str) -> dict:
     """
-    Scrape Twitter profile metadata (name, bio, join date, avatar)
-    using ScrapingBee's July 2024 approach.
+    Fetch basic Twitter profile info using ScrapingBee, with fallback.
+    Returns a dict with name, bio, followers, avatar, etc.
     """
     client = _get_client()
     if not client:
         return {"error": "Missing API key"}
 
-    target_url = BASE_TWITTER_URL.format(username)
+    url = BASE_TWITTER_URL.format(username)
+    regions = ["US", "FR", "DE"]
 
+    # Extraction rules as per ScrapingBee docs
     extract_rules = {
-        "profile": {
-            "name": "div[data-testid='UserName'] span::text",
-            "bio": "div[data-testid='UserDescription']::text",
-            "join_date": "div[data-testid='UserJoinDate'] time::attr(datetime)",
-            "avatar": "img[alt*='Image']::attr(src)"
-        }
+        "name": "div[data-testid='UserName'] span::text",
+        "handle": "div[data-testid='UserName'] div span::text",
+        "bio": "div[data-testid='UserDescription']::text",
+        "join_date": "span[data-testid='UserJoinDate']::text",
+        "followers": {"selector": "a[href$='/followers'] span::text"},
+        "following": {"selector": "a[href$='/following'] span::text"},
+        "avatar": "img[alt*='Image']::attr(src)"
     }
 
-    for region in REGIONS:
+    for region in regions:
         try:
             response = client.get(
-                target_url,
+                url,
                 params={
                     "render_js": "true",
-                    "scroll_page": "false",
                     "country_code": region,
-                    "wait": "8000",
-                    "extract_rules": json.dumps(extract_rules),
+                    "wait": "7000",
+                    "scroll_page": "false",
                 },
+                extract_rules=extract_rules,  # ✅ proper placement
             )
 
             if response.status_code != 200:
-                logger.warning(f"❌ {region} region returned {response.status_code} for {username}")
+                logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for {username}")
                 continue
 
-            # Try JSON response
             try:
                 data = json.loads(response.content.decode("utf-8"))
-                profile_data = data.get("profile", {})
-                profile_data["url"] = target_url
-                profile_data["fetched_at"] = datetime.now(timezone.utc).isoformat()
+                data["url"] = url
+                data["fetched_at"] = datetime.now(timezone.utc).isoformat()
                 logger.info(f"✅ Profile scraped successfully for {username} ({region})")
-                return profile_data
+                return data
+
             except json.JSONDecodeError:
+                # Fallback: parse manually using BeautifulSoup
                 logger.warning(f"⚠️ JSON decode failed for {username} ({region}), trying fallback parser")
-                # BeautifulSoup fallback
-                return _parse_profile_html(response.text, username)
+                return _fallback_parse_profile(response.text, username)
 
         except Exception as e:
             logger.warning(f"❌ {region} region failed for {username}: {e}")
-            time.sleep(2)
+            continue
 
     return {"error": f"All ScrapingBee regions failed for {username}"}
 
 
-def _parse_profile_html(html: str, username: str) -> dict:
-    """Fallback parser if ScrapingBee doesn't return JSON."""
+def _fallback_parse_profile(html: str, username: str) -> dict:
+    """Fallback parser for profile info when ScrapingBee doesn’t return valid JSON."""
     soup = BeautifulSoup(html, "html.parser")
-    profile = {}
-    try:
-        name_tag = soup.select_one("div[data-testid='UserName'] span")
-        bio_tag = soup.select_one("div[data-testid='UserDescription']")
-        join_tag = soup.select_one("div[data-testid='UserJoinDate'] time")
-        avatar_tag = soup.select_one("img[alt*='Image']")
+    name_el = soup.select_one("div[data-testid='UserName'] span")
+    bio_el = soup.select_one("div[data-testid='UserDescription']")
+    avatar_el = soup.select_one("img[alt*='Image']")
+    followers_el = soup.select_one("a[href$='/followers'] span")
+    following_el = soup.select_one("a[href$='/following'] span")
 
-        profile["name"] = name_tag.get_text(strip=True) if name_tag else username
-        profile["bio"] = bio_tag.get_text(strip=True) if bio_tag else ""
-        profile["join_date"] = join_tag.get("datetime") if join_tag else None
-        profile["avatar"] = avatar_tag.get("src") if avatar_tag else None
-        profile["fetched_at"] = datetime.now(timezone.utc).isoformat()
-        profile["url"] = BASE_TWITTER_URL.format(username)
-        logger.info(f"🧩 Parsed profile HTML for {username}")
-    except Exception as e:
-        logger.error(f"Failed HTML parse for {username}: {e}")
-    return profile
+    return {
+        "name": name_el.text.strip() if name_el else "",
+        "bio": bio_el.text.strip() if bio_el else "",
+        "avatar": avatar_el["src"] if avatar_el and avatar_el.has_attr("src") else "",
+        "followers": followers_el.text.strip() if followers_el else "",
+        "following": following_el.text.strip() if following_el else "",
+        "url": BASE_TWITTER_URL.format(username),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "parsed_with": "BeautifulSoup",
+    }
 
 
-# ==========================================================
-# 🧵 POSTS SCRAPING
-# ==========================================================
-def fetch_twitter_posts(username: str, limit: int = 10) -> list[dict]:
+# ---------------------------------------------------------------------
+# 🧩 2️⃣ FETCH RECENT POSTS
+# ---------------------------------------------------------------------
+def fetch_twitter_posts(username: str, limit: int = 10) -> dict:
     """
-    Scrape latest visible tweets (text, timestamp, likes, replies, retweets)
-    with ScrapingBee + BeautifulSoup fallback.
+    Fetch recent tweets using ScrapingBee, with fallback.
+    Returns a list of tweet dictionaries.
     """
     client = _get_client()
     if not client:
-        return [{"error": "Missing API key"}]
+        return {"tweets": [], "error": "Missing API key"}
 
-    target_url = BASE_TWITTER_URL.format(username)
+    url = BASE_TWITTER_URL.format(username)
+    regions = ["US", "FR", "DE"]
 
     extract_rules = {
         "tweets": {
             "_items": "article[data-testid='tweet']",
-            "text": "div[lang]::text",
+            "text": "div[data-testid='tweetText']::text",
             "timestamp": "time::attr(datetime)",
             "likes": "div[data-testid='like'] span::text",
             "replies": "div[data-testid='reply'] span::text",
@@ -137,89 +130,88 @@ def fetch_twitter_posts(username: str, limit: int = 10) -> list[dict]:
         }
     }
 
-    for region in REGIONS:
+    for region in regions:
         try:
             response = client.get(
-                target_url,
+                url,
                 params={
                     "render_js": "true",
-                    "scroll_page": "true",
                     "country_code": region,
                     "wait": "8000",
-                    "extract_rules": json.dumps(extract_rules),
+                    "scroll_page": "true",
                 },
+                extract_rules=extract_rules,
             )
 
             if response.status_code != 200:
-                logger.warning(f"❌ {region} region failed ({response.status_code}) for tweets of {username}")
+                logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for {username} tweets")
                 continue
 
             try:
                 data = json.loads(response.content.decode("utf-8"))
                 tweets = data.get("tweets", [])[:limit]
                 for t in tweets:
+                    t["source_url"] = url
                     t["fetched_at"] = datetime.now(timezone.utc).isoformat()
-                    t["source_url"] = target_url
-                    t["platform"] = "Twitter"
                 logger.info(f"✅ Collected {len(tweets)} tweets for {username} ({region})")
-                return tweets
+                return {"tweets": tweets}
+
             except json.JSONDecodeError:
-                logger.warning(f"⚠️ JSON decode failed for tweets of {username} ({region}), using HTML parser")
-                return _parse_tweets_html(response.text, username, limit)
+                logger.warning(f"⚠️ JSON decode failed for {username} ({region}), trying fallback parser")
+                return _fallback_parse_tweets(response.text, username, limit)
 
         except Exception as e:
             logger.warning(f"❌ {region} region failed for {username} tweets: {e}")
-            time.sleep(2)
+            continue
 
-    return []
+    return {"tweets": [], "error": f"All ScrapingBee regions failed for {username} tweets"}
 
 
-def _parse_tweets_html(html: str, username: str, limit: int) -> list[dict]:
-    """Fallback BeautifulSoup parser for tweets."""
+def _fallback_parse_tweets(html: str, username: str, limit: int) -> dict:
+    """Fallback parser for tweets using BeautifulSoup."""
     soup = BeautifulSoup(html, "html.parser")
     tweets = []
-    try:
-        for article in soup.select("article[data-testid='tweet']")[:limit]:
-            text = " ".join([n.get_text(strip=True) for n in article.select("div[lang]")])
-            timestamp_tag = article.select_one("time")
-            likes_tag = article.select_one("div[data-testid='like'] span")
-            replies_tag = article.select_one("div[data-testid='reply'] span")
-            retweets_tag = article.select_one("div[data-testid='retweet'] span")
+    for article in soup.select("article[data-testid='tweet']")[:limit]:
+        text_el = article.select_one("div[data-testid='tweetText']")
+        time_el = article.select_one("time")
+        likes_el = article.select_one("div[data-testid='like'] span")
+        replies_el = article.select_one("div[data-testid='reply'] span")
+        retweets_el = article.select_one("div[data-testid='retweet'] span")
 
-            tweets.append({
-                "text": text,
-                "timestamp": timestamp_tag.get("datetime") if timestamp_tag else None,
-                "likes": likes_tag.get_text(strip=True) if likes_tag else "0",
-                "replies": replies_tag.get_text(strip=True) if replies_tag else "0",
-                "retweets": retweets_tag.get_text(strip=True) if retweets_tag else "0",
-                "platform": "Twitter",
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-                "source_url": BASE_TWITTER_URL.format(username),
-            })
-        logger.info(f"🧩 Parsed {len(tweets)} tweets via fallback for {username}")
-    except Exception as e:
-        logger.error(f"Failed to parse tweets HTML for {username}: {e}")
-    return tweets
+        tweets.append({
+            "text": text_el.text.strip() if text_el else "",
+            "timestamp": time_el["datetime"] if time_el and time_el.has_attr("datetime") else "",
+            "likes": likes_el.text.strip() if likes_el else "0",
+            "replies": replies_el.text.strip() if replies_el else "0",
+            "retweets": retweets_el.text.strip() if retweets_el else "0",
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "source_url": BASE_TWITTER_URL.format(username),
+            "parsed_with": "BeautifulSoup",
+        })
+    logger.info(f"🧩 Parsed {len(tweets)} tweets via fallback for {username}")
+    return {"tweets": tweets}
 
 
-# ==========================================================
-# 🎯 ORCHESTRATOR
-# ==========================================================
+# ---------------------------------------------------------------------
+# 🧩 3️⃣ ORCHESTRATOR
+# ---------------------------------------------------------------------
 def scrape_twitter_profile(username: str) -> dict:
-    """
-    Orchestrator combining profile metadata + tweets.
-    """
+    """Combine profile metadata + recent tweets."""
     logger.info(f"🚀 Starting Twitter scrape for {username}")
-    profile_data = fetch_twitter_profile(username)
-    tweets = fetch_twitter_posts(username)
 
-    success = "error" not in profile_data
+    profile_data = fetch_twitter_profile(username)
+    posts_data = fetch_twitter_posts(username)
+
+    if "error" in profile_data:
+        logger.warning(f"⚠️ Profile scrape returned error for {username}: {profile_data['error']}")
+
     result = {
-        "success": success,
+        "success": "error" not in profile_data,
         "username": username,
         "platform": "Twitter",
         "profile": profile_data,
-        "posts": tweets,
+        "posts": posts_data.get("tweets", []),
     }
-    logger.info(f"✅ Finished Twitter scrape for {username} ({len(tweets)} tweets)")
+
+    logger.info(f"✅ Finished Twitter scrape for {username} ({len(result['posts'])} tweets)")
     return result
