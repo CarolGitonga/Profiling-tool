@@ -92,23 +92,19 @@ def fetch_twitter_posts(username: str, limit: int = 10) -> list:
     for region in regions:
         try:
             response = client.get(
-                target_url,
-                params={
-                    "render_js": "true",
+               target_url,
+               params={
+                   "render_js": "true",
                     "country_code": region,
-                    "wait": "7000",
-                },
-                extract_rules = {
-                    "tweets": {
-                        "_items": "article[data-testid='tweet']",
-                        "text": "div[lang]::text",
-                        "timestamp": "time::attr(datetime)",
-                        "likes": "div[data-testid='like'] span::text",
-                        "comments": "div[data-testid='reply'] span::text",
-                   }
-
+                    "wait": "6000",
+                    "extract_rules": json.dumps({
+                        "username": "meta[property='og:title']::attr(content)",
+                        "bio": "meta[property='og:description']::attr(content)",
+                        "avatar_url": "meta[property='og:image']::attr(content)",
+                    }),
                 },
             )
+
 
             if response.status_code != 200:
                 logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for posts of {username}")
