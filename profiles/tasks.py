@@ -227,73 +227,104 @@ def scrape_instagram_task(self, username: str) -> dict:
 
 
 # ==========================================================
-# 🧩 BEHAVIORAL ANALYSIS TASK
+# 🧩 BEHAVIORAL ANALYSIS TASK (refactored)
 # ==========================================================
+
 @shared_task(bind=True, queue="default")
 def perform_behavioral_analysis(self, profile_id):
-    """Analyze user behavior, sentiment, and interests (multi-platform)."""
+    """Analyze user behavior, sentiment, and interests (multi-platform safe)."""
     try:
         profile = Profile.objects.get(id=profile_id)
         analysis, _ = BehavioralAnalysis.objects.get_or_create(profile=profile)
         sm = SocialMediaAccount.objects.filter(profile=profile, platform=profile.platform).first()
-        posts_qs = RawPost.objects.filter(profile=profile)
+        posts_qs = RawPost.objects.filter(profile=profile).only("timestamp", "content")
 
-        # Helper functions
-        def compute_posting_patterns(posts_df):
-            if posts_df.empty:
+        # ----------------- Helpers -----------------
+        def _to_df(qs):
+            if not qs.exists():
+                return pd.DataFrame()
+            df = pd.DataFrame.from_records(list(qs.values("timestamp", "content")))
+            # Drop null timestamps and coerce to datetime
+            if "timestamp" in df.columns:
+                df = df[df["timestamp"].notna()].copy()
+                # ensure timezone-aware; if naive, treat as now (fallback)
+                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+                df = df[df["timestamp"].notna()]
+            return df
+
+        def compute_posting_patterns(posts_df: pd.DataFrame):
+            if posts_df.empty or "timestamp" not in posts_df.columns:
                 return None, []
-            posts_df["hour"] = posts_df["timestamp"].apply(lambda x: x.hour)
-            posts_df["weekday"] = posts_df["timestamp"].apply(lambda x: x.strftime("%A"))
-            avg_post_time = f"{int(posts_df['hour'].mode()[0])}:00"
-            most_active_days = posts_df["weekday"].value_counts().head(3).index.tolist()
+            posts_df["hour"] = posts_df["timestamp"].dt.hour
+            posts_df["weekday"] = posts_df["timestamp"].dt.day_name()
+            # Mode can be empty; guard
+            try:
+                avg_post_time = f"{int(posts_df['hour'].mode().iat[0])}:00"
+            except Exception:
+                avg_post_time = None
+            most_active_days = []
+            if "weekday" in posts_df.columns:
+                most_active_days = posts_df["weekday"].value_counts().head(3).index.tolist()
             return avg_post_time, most_active_days
 
-        def extract_keywords(text):
+        def extract_keywords(text: str):
+            if not text.strip():
+                return {}
             hashtags = re.findall(r"#(\w+)", text)
             words = re.findall(r"\b[a-zA-Z]{4,}\b", text.lower())
             all_keywords = hashtags + words
-            return pd.Series(all_keywords).value_counts().head(10).to_dict() if all_keywords else {}
+            return pd.Series(all_keywords).value_counts().head(20).to_dict() if all_keywords else {}
 
         def compute_sentiment_distribution(captions):
             sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
             sentiments = []
             for caption in captions:
-                sentiment = round(TextBlob(str(caption)).sentiment.polarity, 2)
-                sentiments.append(sentiment)
-                if sentiment > 0.05:
+                s = round(TextBlob(str(caption)).sentiment.polarity, 3)
+                sentiments.append(s)
+                if s > 0.05:
                     sentiment_distribution["positive"] += 1
-                elif sentiment < -0.05:
+                elif s < -0.05:
                     sentiment_distribution["negative"] += 1
                 else:
                     sentiment_distribution["neutral"] += 1
             overall_score = round(
                 (sentiment_distribution["positive"] - sentiment_distribution["negative"])
                 / max(1, sum(sentiment_distribution.values())),
-                2,
+                3,
             )
             return sentiments, sentiment_distribution, overall_score
 
-        # --- Generic fallback (covers Twitter/others) ---
+        # ----------------- Compute -----------------
         captions = list(posts_qs.values_list("content", flat=True))
         sentiments, sentiment_distribution, sentiment_score = compute_sentiment_distribution(captions)
-        keyword_freq = extract_keywords(" ".join(captions))
-        avg_post_time, most_active_days = compute_posting_patterns(
-            pd.DataFrame(list(posts_qs.values("timestamp"))) if posts_qs.exists() else pd.DataFrame()
-        )
-        network_size = (sm.followers + sm.following) if sm else 0
 
+        posts_df = _to_df(posts_qs)
+        avg_post_time, most_active_days = compute_posting_patterns(posts_df)
+        keyword_freq = extract_keywords(" ".join(captions))
+
+        followers = int(getattr(sm, "followers", 0) or 0) if sm else 0
+        following = int(getattr(sm, "following", 0) or 0) if sm else 0
+        network_size = followers + following
+
+        # ----------------- Persist -----------------
         analysis.avg_post_time = avg_post_time
-        analysis.most_active_days = most_active_days
+        analysis.most_active_days = most_active_days or []
         analysis.sentiment_score = sentiment_score
-        analysis.top_keywords = keyword_freq
+        analysis.top_keywords = keyword_freq or {}
         analysis.network_size = network_size
-        analysis.sentiment_distribution = sentiment_distribution
-        analysis.influence_score = round(network_size * (sentiment_score + 1), 2)
+        # Optional fields left untouched: network_density, geo_locations, interests
         analysis.analyzed_at = timezone.now()
         analysis.save()
 
-        logger.info(f"✅ Behavioral analysis done for {profile.username}")
-        return {"success": True, "profile": profile.username}
+        logger.info(f"✅ Behavioral analysis done for {profile.username} ({profile.platform})")
+        # Return includes derived fields we didn't store (for convenience)
+        return {
+            "success": True,
+            "profile": profile.username,
+            "platform": profile.platform,
+            "sentiment_distribution": sentiment_distribution,
+            "computed_samples": len(captions),
+        }
 
     except Exception as e:
         logger.exception(f"Behavioral analysis failed for profile {profile_id}: {e}")

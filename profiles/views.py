@@ -250,16 +250,18 @@ def profile_dashboard(request, pk):
     return render(request, "profiles/dashboard.html", context)
 
 # ==========================
-# 🧠 BEHAVIORAL DASHBOARD
+# 🧠 BEHAVIORAL DASHBOARD (refactored)
 # ==========================
-from collections import Counter
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 WEEKDAY_INDEX = {d: i for i, d in enumerate(WEEKDAYS)}
 
+
 def behavioral_dashboard(request, username, platform):
     """Platform-specific behavioral dashboard (Twitter, Instagram, TikTok, GitHub, Sherlock)."""
     from .models import Profile, RawPost, SocialMediaAccount
+
+    # Wordcloud helper (kept as-is)
     from profiles.utils.wordcloud import generate_wordcloud
 
     profile = (
@@ -272,21 +274,27 @@ def behavioral_dashboard(request, username, platform):
 
     social = SocialMediaAccount.objects.filter(profile=profile, platform=platform).first()
     analysis = getattr(profile, "behavior_analysis", None)
-    posts_qs = RawPost.objects.filter(profile=profile, platform=platform).order_by("timestamp")
-    posts = list(posts_qs.values("timestamp", "likes", "comments", "sentiment_score", "content"))
+    posts_qs = (
+        RawPost.objects.filter(profile=profile, platform=platform)
+        .order_by("timestamp")
+        .values("timestamp", "likes", "comments", "sentiment_score", "content")
+    )
+    posts = list(posts_qs)
 
     # --- Sentiment timeline ---
     sentiment_labels, sentiment_values = [], []
     for p in posts:
-        if p["timestamp"] and p["sentiment_score"] is not None:
-            sentiment_labels.append(p["timestamp"].strftime("%b %d"))
-            sentiment_values.append(round(p["sentiment_score"], 3))
+        ts = p.get("timestamp")
+        if ts and p.get("sentiment_score") is not None:
+            sentiment_labels.append(ts.strftime("%b %d"))
+            sentiment_values.append(round(float(p["sentiment_score"]), 3))
 
     # --- Engagement timeline ---
     engagement_labels, engagement_values = [], []
     for p in posts:
-        if p["timestamp"]:
-            engagement_labels.append(p["timestamp"].strftime("%b %d"))
+        ts = p.get("timestamp")
+        if ts:
+            engagement_labels.append(ts.strftime("%b %d"))
             likes = int(p.get("likes") or 0)
             comments = int(p.get("comments") or 0)
             engagement_values.append(likes + comments)
@@ -294,7 +302,7 @@ def behavioral_dashboard(request, username, platform):
     # --- Heatmap ---
     heat_counter = Counter()
     for p in posts:
-        ts = p["timestamp"]
+        ts = p.get("timestamp")
         if ts:
             heat_counter[(ts.hour, ts.strftime("%A"))] += 1
     heatmap_data = [
@@ -302,24 +310,27 @@ def behavioral_dashboard(request, username, platform):
         for wd in WEEKDAYS for hour in range(24)
     ]
 
-    # --- Sentiment distribution ---
-    pos = sum(1 for s in sentiment_values if s > 0.1)
-    neg = sum(1 for s in sentiment_values if s < -0.1)
+    # --- Sentiment distribution (match task thresholds) ---
+    pos = sum(1 for s in sentiment_values if s > 0.05)
+    neg = sum(1 for s in sentiment_values if s < -0.05)
     neu = max(0, len(sentiment_values) - pos - neg)
 
     # --- Network metrics ---
     followers = int(getattr(social, "followers", 0) or 0) if social else 0
     following = int(getattr(social, "following", 0) or 0) if social else 0
     network_size = followers + following
-    influence_score = getattr(analysis, "influence_score", None)
 
-    # --- Keyword extraction ---
-    top_keywords = analysis.top_keywords if analysis and analysis.top_keywords else {}
-    if not top_keywords and posts:
+    # Influence score is not stored in the model; compute on the fly
+    sentiment_score = float(getattr(analysis, "sentiment_score", 0.0) or 0.0)
+    influence_score = round(network_size * (sentiment_score + 1.0), 2) if network_size else 0.0
+
+    # --- Keyword extraction (fallback if analysis is missing/empty) ---
+    top_keywords = getattr(analysis, "top_keywords", None) if analysis else None
+    if not top_keywords:
         import re
         words = []
         for p in posts:
-            content = (p["content"] or "").lower()
+            content = (p.get("content") or "").lower()
             words += re.findall(r"#(\w+)", content)
             words += re.findall(r"\b[a-zA-Z]{4,}\b", content)
         freq = Counter(words).most_common(20)
@@ -340,7 +351,7 @@ def behavioral_dashboard(request, username, platform):
         "network_size": network_size,
         "followers": followers,
         "following": following,
-        "influence_score": influence_score,
+        "influence_score": influence_score,  # computed here
         "sentiment_pie": json.dumps([pos, neu, neg]),
         "sentiment_timeline_labels": json.dumps(sentiment_labels),
         "sentiment_timeline_values": json.dumps(sentiment_values),
@@ -352,4 +363,3 @@ def behavioral_dashboard(request, username, platform):
     }
 
     return render(request, "profiles/behavioral_dashboard.html", context)
-
