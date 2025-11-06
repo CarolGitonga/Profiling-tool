@@ -1,217 +1,136 @@
 import os
-import json
+import random
 import logging
-from datetime import datetime, timezone
 from scrapingbee import ScrapingBeeClient
 from bs4 import BeautifulSoup
-from django.conf import settings
+from django.utils import timezone
+from textblob import TextBlob
+from profiles.models import Profile, RawPost
 
 logger = logging.getLogger(__name__)
 
-# --- API Setup ---
-SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
-BASE_TWITTER_URL = "https://twitter.com/{}"
+# --- Fallback Nitter mirrors (fastest first) ---
+NITTER_MIRRORS = [
+    "https://nitter.net",
+    "https://nitter.poast.org",
+    "https://nitter.privacydev.net",
+    "https://nitter.lucabased.xyz",
+]
 
 
-def _get_client():
-    """Initialize ScrapingBee client."""
-    if not SCRAPINGBEE_API_KEY:
-        logger.error("❌ SCRAPINGBEE_API_KEY missing from environment or settings.")
-        return None
-    return ScrapingBeeClient(api_key=SCRAPINGBEE_API_KEY)
-
-
-# ---------------------------------------------------------------------
-# 🧩 1️⃣ FETCH PROFILE METADATA
-# ---------------------------------------------------------------------
-def fetch_twitter_profile(username: str) -> dict:
+def scrape_twitter_profile(username: str):
     """
-    Fetch basic Twitter profile info using ScrapingBee, with fallback.
-    Returns a dict with name, bio, followers, avatar, etc.
+    Scrape Twitter profile using ScrapingBee with Nitter fallback.
+    Performs sentiment analysis and saves posts in RawPost.
     """
-    client = _get_client()
-    if not client:
+
+    api_key = os.getenv("SCRAPINGBEE_API_KEY")
+    if not api_key:
+        logger.error("❌ Missing SCRAPINGBEE_API_KEY in environment.")
         return {"error": "Missing API key"}
 
-    url = BASE_TWITTER_URL.format(username)
-    regions = ["US", "FR", "DE"]
+    client = ScrapingBeeClient(api_key=api_key)
+    twitter_url = f"https://mobile.twitter.com/{username}"
+    html = None
 
-    # Extraction rules as per ScrapingBee docs
-    extract_rules = {
-        "name": "div[data-testid='UserName'] span::text",
-        "handle": "div[data-testid='UserName'] div span::text",
-        "bio": "div[data-testid='UserDescription']::text",
-        "join_date": "span[data-testid='UserJoinDate']::text",
-        "followers": {"selector": "a[href$='/followers'] span::text"},
-        "following": {"selector": "a[href$='/following'] span::text"},
-        "avatar": "img[alt*='Image']::attr(src)"
+    params = {
+        "render_js": "true",
+        "stealth_proxy": "true",
+        "premium_proxy": "true",
+        "country_code": random.choice(["us", "de", "fr"]),
+        "wait_browser": "10000",
     }
 
-    for region in regions:
-        try:
-            response = client.get(
-                url,
-                params={
-                    "render_js": "true",
-                    "country_code": region,
-                    "wait": "7000",
-                    "scroll_page": "false",
-                },
-                extract_rules=extract_rules,  # ✅ proper placement
-            )
+    logger.info(f"🕵️ Trying ScrapingBee for Twitter user: {username}")
 
-            if response.status_code != 200:
-                logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for {username}")
+    try:
+        resp = client.get(twitter_url, params=params)
+        if resp.status_code == 200 and b"data-testid" in resp.content:
+            html = resp.content.decode("utf-8", errors="ignore")
+            logger.info(f"✅ ScrapingBee succeeded for {username}")
+        else:
+            logger.warning(f"⚠️ ScrapingBee returned {resp.status_code} for {username}")
+    except Exception as e:
+        logger.error(f"❌ ScrapingBee request failed for {username}: {e}")
+
+    # --- Fallback to Nitter mirrors if Twitter blocks JS render ---
+    if not html:
+        logger.warning(f"⚠️ Falling back to Nitter for {username}")
+        random.shuffle(NITTER_MIRRORS)
+        for mirror in NITTER_MIRRORS:
+            try:
+                nitter_url = f"{mirror}/{username}"
+                r = client.get(nitter_url)
+                if r.status_code == 200:
+                    html = r.content.decode("utf-8", errors="ignore")
+                    logger.info(f"✅ Using Nitter mirror: {mirror}")
+                    break
+            except Exception as e:
+                logger.warning(f"⚠️ Failed Nitter mirror {mirror}: {e}")
                 continue
 
-            try:
-                data = json.loads(response.content.decode("utf-8"))
-                data["url"] = url
-                data["fetched_at"] = datetime.now(timezone.utc).isoformat()
-                logger.info(f"✅ Profile scraped successfully for {username} ({region})")
-                return data
+    if not html:
+        logger.error(f"❌ All Nitter mirrors failed for {username}")
+        return {"error": f"All sources failed for {username}"}
 
-            except json.JSONDecodeError:
-                # Fallback: parse manually using BeautifulSoup
-                logger.warning(f"⚠️ JSON decode failed for {username} ({region}), trying fallback parser")
-                return _fallback_parse_profile(response.text, username)
-
-        except Exception as e:
-            logger.warning(f"❌ {region} region failed for {username}: {e}")
-            continue
-
-    return {"error": f"All ScrapingBee regions failed for {username}"}
-
-
-def _fallback_parse_profile(html: str, username: str) -> dict:
-    """Fallback parser for profile info when ScrapingBee doesn’t return valid JSON."""
+    # --- Parse tweets from HTML ---
     soup = BeautifulSoup(html, "html.parser")
-    name_el = soup.select_one("div[data-testid='UserName'] span")
-    bio_el = soup.select_one("div[data-testid='UserDescription']")
-    avatar_el = soup.select_one("img[alt*='Image']")
-    followers_el = soup.select_one("a[href$='/followers'] span")
-    following_el = soup.select_one("a[href$='/following'] span")
+    title = soup.title.string.strip() if soup.title else username
+
+    # Twitter uses 'div[data-testid="tweetText"]' — Nitter uses 'div.tweet-content'
+    tweet_selectors = [
+        "div[data-testid='tweetText']",
+        "div.tweet-content",
+    ]
+    tweets = []
+    for selector in tweet_selectors:
+        elements = soup.select(selector)
+        if elements:
+            tweets = [div.get_text(" ", strip=True) for div in elements]
+            break
+
+    if not tweets:
+        logger.warning(f"⚠️ No tweets found for {username}")
+        return {"error": "No tweets found"}
+
+    # --- Get or create Profile ---
+    profile, created = Profile.objects.get_or_create(
+        username=username,
+        platform="Twitter",
+        defaults={
+            "full_name": title,
+            "bio": "",
+            "followers": 0,
+            "following": 0,
+        },
+    )
+
+    # --- Save new RawPosts with sentiment analysis ---
+    saved_count = 0
+    for text in tweets[:20]:  # limit to first 20 tweets
+        if not RawPost.objects.filter(profile=profile, content=text).exists():
+            blob = TextBlob(text)
+            polarity = round(blob.sentiment.polarity, 3)  # -1.0 = negative, +1.0 = positive
+
+            RawPost.objects.create(
+                profile=profile,
+                content=text,
+                timestamp=timezone.now(),
+                sentiment_score=polarity,
+            )
+            saved_count += 1
+
+    source_type = "nitter" if any(m in html for m in NITTER_MIRRORS) else "twitter"
+    logger.info(
+        f"✅ {username}: saved {saved_count} new tweets "
+        f"(total scraped {len(tweets)}, source={source_type})"
+    )
 
     return {
-        "name": name_el.text.strip() if name_el else "",
-        "bio": bio_el.text.strip() if bio_el else "",
-        "avatar": avatar_el["src"] if avatar_el and avatar_el.has_attr("src") else "",
-        "followers": followers_el.text.strip() if followers_el else "",
-        "following": following_el.text.strip() if following_el else "",
-        "url": BASE_TWITTER_URL.format(username),
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "parsed_with": "BeautifulSoup",
-    }
-
-
-# ---------------------------------------------------------------------
-# 🧩 2️⃣ FETCH RECENT POSTS
-# ---------------------------------------------------------------------
-def fetch_twitter_posts(username: str, limit: int = 10) -> dict:
-    """
-    Fetch recent tweets using ScrapingBee, with fallback.
-    Returns a list of tweet dictionaries.
-    """
-    client = _get_client()
-    if not client:
-        return {"tweets": [], "error": "Missing API key"}
-
-    url = BASE_TWITTER_URL.format(username)
-    regions = ["US", "FR", "DE"]
-
-    extract_rules = {
-        "tweets": {
-            "_items": "article[data-testid='tweet']",
-            "text": "div[data-testid='tweetText']::text",
-            "timestamp": "time::attr(datetime)",
-            "likes": "div[data-testid='like'] span::text",
-            "replies": "div[data-testid='reply'] span::text",
-            "retweets": "div[data-testid='retweet'] span::text",
-        }
-    }
-
-    for region in regions:
-        try:
-            response = client.get(
-                url,
-                params={
-                    "render_js": "true",
-                    "country_code": region,
-                    "wait": "8000",
-                    "scroll_page": "true",
-                },
-                extract_rules=extract_rules,
-            )
-
-            if response.status_code != 200:
-                logger.warning(f"⚠️ {region} returned HTTP {response.status_code} for {username} tweets")
-                continue
-
-            try:
-                data = json.loads(response.content.decode("utf-8"))
-                tweets = data.get("tweets", [])[:limit]
-                for t in tweets:
-                    t["source_url"] = url
-                    t["fetched_at"] = datetime.now(timezone.utc).isoformat()
-                logger.info(f"✅ Collected {len(tweets)} tweets for {username} ({region})")
-                return {"tweets": tweets}
-
-            except json.JSONDecodeError:
-                logger.warning(f"⚠️ JSON decode failed for {username} ({region}), trying fallback parser")
-                return _fallback_parse_tweets(response.text, username, limit)
-
-        except Exception as e:
-            logger.warning(f"❌ {region} region failed for {username} tweets: {e}")
-            continue
-
-    return {"tweets": [], "error": f"All ScrapingBee regions failed for {username} tweets"}
-
-
-def _fallback_parse_tweets(html: str, username: str, limit: int) -> dict:
-    """Fallback parser for tweets using BeautifulSoup."""
-    soup = BeautifulSoup(html, "html.parser")
-    tweets = []
-    for article in soup.select("article[data-testid='tweet']")[:limit]:
-        text_el = article.select_one("div[data-testid='tweetText']")
-        time_el = article.select_one("time")
-        likes_el = article.select_one("div[data-testid='like'] span")
-        replies_el = article.select_one("div[data-testid='reply'] span")
-        retweets_el = article.select_one("div[data-testid='retweet'] span")
-
-        tweets.append({
-            "text": text_el.text.strip() if text_el else "",
-            "timestamp": time_el["datetime"] if time_el and time_el.has_attr("datetime") else "",
-            "likes": likes_el.text.strip() if likes_el else "0",
-            "replies": replies_el.text.strip() if replies_el else "0",
-            "retweets": retweets_el.text.strip() if retweets_el else "0",
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "source_url": BASE_TWITTER_URL.format(username),
-            "parsed_with": "BeautifulSoup",
-        })
-    logger.info(f"🧩 Parsed {len(tweets)} tweets via fallback for {username}")
-    return {"tweets": tweets}
-
-
-# ---------------------------------------------------------------------
-# 🧩 3️⃣ ORCHESTRATOR
-# ---------------------------------------------------------------------
-def scrape_twitter_profile(username: str) -> dict:
-    """Combine profile metadata + recent tweets."""
-    logger.info(f"🚀 Starting Twitter scrape for {username}")
-
-    profile_data = fetch_twitter_profile(username)
-    posts_data = fetch_twitter_posts(username)
-
-    if "error" in profile_data:
-        logger.warning(f"⚠️ Profile scrape returned error for {username}: {profile_data['error']}")
-
-    result = {
-        "success": "error" not in profile_data,
+        "success": True,
+        "source": source_type,
         "username": username,
-        "platform": "Twitter",
-        "profile": profile_data,
-        "posts": posts_data.get("tweets", []),
+        "title": title,
+        "tweets_saved": saved_count,
+        "total_tweets_scraped": len(tweets),
     }
-
-    logger.info(f"✅ Finished Twitter scrape for {username} ({len(result['posts'])} tweets)")
-    return result
