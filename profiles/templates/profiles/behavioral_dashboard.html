@@ -137,6 +137,14 @@
       </div>
     </div>
   </div>
+  <!-- Post Timeline -->
+<div class="col-md-12">
+  <div class="chart-wrap">
+    <h6 class="text-secondary fw-bold mb-3">Posting Frequency Over Time</h6>
+    <canvas id="postTimeline"></canvas>
+  </div>
+</div>
+
 
   <!-- Keywords / Word Cloud -->
   <div class="row g-4 mt-1">
@@ -247,6 +255,27 @@
     },
     options: { scales: { y: { min: -1, max: 1 } }, plugins: { legend: { display: false } } }
   });
+// --- Post Timeline ---
+new Chart(document.getElementById('postTimeline'), {
+  type: 'bar',
+  data: {
+    labels: {{ post_timeline_labels|default:"[]"|safe }},
+    datasets: [{
+      label: 'Posts per Day',
+      data: {{ post_timeline_values|default:"[]"|safe }},
+      backgroundColor: '#22267c',
+      borderColor: '#1c1f5a',
+      borderWidth: 1,
+    }]
+  },
+  options: {
+    scales: {
+      y: { beginAtZero: true, title: { display: true, text: 'Posts' } },
+      x: { title: { display: true, text: 'Date' } }
+    },
+    plugins: { legend: { display: false } }
+  }
+});
 
   // --- Engagement Line ---
   new Chart(document.getElementById('engagementLine'), {

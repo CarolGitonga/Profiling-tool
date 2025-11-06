@@ -250,20 +250,23 @@ def profile_dashboard(request, pk):
     return render(request, "profiles/dashboard.html", context)
 
 # ==========================
-# 🧠 BEHAVIORAL DASHBOARD (refactored)
+# 🧠 BEHAVIORAL DASHBOARD (Refactored + Post Timeline)
 # ==========================
+
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 WEEKDAY_INDEX = {d: i for i, d in enumerate(WEEKDAYS)}
 
 
 def behavioral_dashboard(request, username, platform):
-    """Platform-specific behavioral dashboard (Twitter, Instagram, TikTok, GitHub, Sherlock)."""
-    from .models import Profile, RawPost, SocialMediaAccount
-
-    # Wordcloud helper (kept as-is)
-    from profiles.utils.wordcloud import generate_wordcloud
-
+    """
+    Unified behavioral dashboard:
+    - Displays sentiment, engagement, activity heatmap, post timeline, and keywords
+    - Works across all platforms (Twitter, Instagram, TikTok, GitHub, Sherlock)
+    """
+    # --------------------------
+    # 1️⃣ Profile + Related Data
+    # --------------------------
     profile = (
         Profile.objects.filter(username=username, platform=platform)
         .order_by("-date_profiled")
@@ -274,14 +277,15 @@ def behavioral_dashboard(request, username, platform):
 
     social = SocialMediaAccount.objects.filter(profile=profile, platform=platform).first()
     analysis = getattr(profile, "behavior_analysis", None)
-    posts_qs = (
-        RawPost.objects.filter(profile=profile, platform=platform)
-        .order_by("timestamp")
-        .values("timestamp", "likes", "comments", "sentiment_score", "content")
-    )
-    posts = list(posts_qs)
+    posts_qs = RawPost.objects.filter(profile=profile, platform=platform).order_by("timestamp")
 
-    # --- Sentiment timeline ---
+    posts = list(
+        posts_qs.values("timestamp", "likes", "comments", "sentiment_score", "content")
+    )
+
+    # --------------------------
+    # 2️⃣ Sentiment Timeline
+    # --------------------------
     sentiment_labels, sentiment_values = [], []
     for p in posts:
         ts = p.get("timestamp")
@@ -289,7 +293,9 @@ def behavioral_dashboard(request, username, platform):
             sentiment_labels.append(ts.strftime("%b %d"))
             sentiment_values.append(round(float(p["sentiment_score"]), 3))
 
-    # --- Engagement timeline ---
+    # --------------------------
+    # 3️⃣ Engagement Timeline
+    # --------------------------
     engagement_labels, engagement_values = [], []
     for p in posts:
         ts = p.get("timestamp")
@@ -299,35 +305,57 @@ def behavioral_dashboard(request, username, platform):
             comments = int(p.get("comments") or 0)
             engagement_values.append(likes + comments)
 
-    # --- Heatmap ---
+    # --------------------------
+    # 4️⃣ Post Timeline (📅 Frequency per Day)
+    # --------------------------
+    from datetime import date
+    post_counter = Counter()
+    for p in posts:
+        ts = p.get("timestamp")
+        if ts:
+            post_counter[ts.date()] += 1
+
+    post_timeline_labels = [d.strftime("%b %d") for d in sorted(post_counter.keys())]
+    post_timeline_values = [post_counter[d] for d in sorted(post_counter.keys())]
+
+    # --------------------------
+    # 5️⃣ Activity Heatmap (Weekday × Hour)
+    # --------------------------
     heat_counter = Counter()
     for p in posts:
         ts = p.get("timestamp")
         if ts:
             heat_counter[(ts.hour, ts.strftime("%A"))] += 1
+
     heatmap_data = [
         {"x": hour, "y": WEEKDAY_INDEX[wd], "v": heat_counter.get((hour, wd), 0)}
         for wd in WEEKDAYS for hour in range(24)
     ]
 
-    # --- Sentiment distribution (match task thresholds) ---
+    # --------------------------
+    # 6️⃣ Sentiment Distribution
+    # --------------------------
     pos = sum(1 for s in sentiment_values if s > 0.05)
     neg = sum(1 for s in sentiment_values if s < -0.05)
     neu = max(0, len(sentiment_values) - pos - neg)
 
-    # --- Network metrics ---
+    # --------------------------
+    # 7️⃣ Network Metrics
+    # --------------------------
     followers = int(getattr(social, "followers", 0) or 0) if social else 0
     following = int(getattr(social, "following", 0) or 0) if social else 0
     network_size = followers + following
 
-    # Influence score is not stored in the model; compute on the fly
     sentiment_score = float(getattr(analysis, "sentiment_score", 0.0) or 0.0)
-    influence_score = round(network_size * (sentiment_score + 1.0), 2) if network_size else 0.0
+    influence_score = (
+        round(network_size * (sentiment_score + 1.0), 2) if network_size else 0.0
+    )
 
-    # --- Keyword extraction (fallback if analysis is missing/empty) ---
+    # --------------------------
+    # 8️⃣ Keyword Extraction (Fallback)
+    # --------------------------
     top_keywords = getattr(analysis, "top_keywords", None) if analysis else None
     if not top_keywords:
-        import re
         words = []
         for p in posts:
             content = (p.get("content") or "").lower()
@@ -336,28 +364,35 @@ def behavioral_dashboard(request, username, platform):
         freq = Counter(words).most_common(20)
         top_keywords = {k: v for k, v in freq}
 
-    # --- Wordcloud generation ---
+    # --------------------------
+    # 9️⃣ Wordcloud Generation
+    # --------------------------
     captions = [p.get("content", "") for p in posts if p.get("content")]
     bios = [s.bio for s in SocialMediaAccount.objects.filter(profile=profile) if s.bio]
     weighted_keywords = [(k + " ") * max(int(v), 1) for k, v in top_keywords.items()]
     combined_text = " ".join(captions + bios + weighted_keywords)
     wordcloud_image = generate_wordcloud(combined_text) if combined_text.strip() else None
 
+    # --------------------------
+    # 🔟 Context for Template
+    # --------------------------
     context = {
         "profile": profile,
         "platform": platform,
         "social": social,
         "analysis": analysis,
-        "network_size": network_size,
         "followers": followers,
         "following": following,
-        "influence_score": influence_score,  # computed here
+        "network_size": network_size,
+        "influence_score": influence_score,
         "sentiment_pie": json.dumps([pos, neu, neg]),
         "sentiment_timeline_labels": json.dumps(sentiment_labels),
         "sentiment_timeline_values": json.dumps(sentiment_values),
         "engagement_labels": json.dumps(engagement_labels),
         "engagement_values": json.dumps(engagement_values),
         "heatmap_data": json.dumps(heatmap_data),
+        "post_timeline_labels": json.dumps(post_timeline_labels),
+        "post_timeline_values": json.dumps(post_timeline_values),
         "top_keywords": top_keywords,
         "wordcloud_image": wordcloud_image,
     }
