@@ -112,11 +112,21 @@ def scrape_twitter_profile(username: str):
     if avatar_url.startswith("/"):
         avatar_url = f"{NITTER_MIRRORS[0]}{avatar_url}"
 
-    # --- Followers / Following ---
-    followers_el = soup.select_one("a[href$='/followers'] .profile-stat-num, a[href$='/followers'] span")
-    following_el = soup.select_one("a[href$='/following'] .profile-stat-num, a[href$='/following'] span")
+    # Followers & Following
+    followers_el = soup.select_one(
+        "a[href$='/followers'] .profile-stat-num, "
+         "a[href$='/followers'] span, "
+         "li.followers b"
+    )
+    following_el = soup.select_one(
+        "a[href$='/following'] .profile-stat-num, "
+        "a[href$='/following'] span, "
+        "li.following b"
+    )
     followers = _extract_int(followers_el.get_text() if followers_el else "")
     following = _extract_int(following_el.get_text() if following_el else "")
+    
+
 
     # --- Tweets ---
     tweet_selectors = [
