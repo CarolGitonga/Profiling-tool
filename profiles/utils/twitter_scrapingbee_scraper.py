@@ -114,14 +114,14 @@ def scrape_twitter_profile(username: str):
 
     # Followers & Following
     followers_el = soup.select_one(
-        "a[href$='/followers'] .profile-stat-num, "
-         "a[href$='/followers'] span, "
-         "li.followers b"
+        'a[href*="/followers"] .profile-stat-num, '
+       'li a[href*="/followers"] .profile-stat-num, '
+      'a[href*="/followers"] span'
     )
     following_el = soup.select_one(
-        "a[href$='/following'] .profile-stat-num, "
-        "a[href$='/following'] span, "
-        "li.following b"
+        'a[href*="/following"] .profile-stat-num, '
+       'li a[href*="/following"] .profile-stat-num, '
+       'a[href*="/following"] span'
     )
     followers = _extract_int(followers_el.get_text() if followers_el else "")
     following = _extract_int(following_el.get_text() if following_el else "")
