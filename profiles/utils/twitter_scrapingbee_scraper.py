@@ -1,67 +1,61 @@
 import os
-import re
 import random
 import logging
-from scrapingbee import ScrapingBeeClient
 from bs4 import BeautifulSoup
-from django.utils import timezone
 from textblob import TextBlob
+from scrapingbee import ScrapingBeeClient
+from django.utils import timezone
 from profiles.models import Profile, SocialMediaAccount, RawPost
 
 logger = logging.getLogger(__name__)
 
-# 🌍 Nitter fallback mirrors
+# ✅ Updated Nitter mirrors (active as of 2025)
 NITTER_MIRRORS = [
     "https://nitter.net",
-    "https://nitter.poast.org",
     "https://nitter.privacydev.net",
-    "https://nitter.lucabased.xyz",
+    "https://nitter.freedit.eu",
+    "https://nitter.catsarch.com",
 ]
 
 
-# -------------------------------------------------------------
-# 🧩 Helper functions
-# -------------------------------------------------------------
-def _extract_int(text: str) -> int:
-    """Convert string like '3.2K' or '1.4M' to int."""
-    if not text:
-        return 0
-    text = text.replace(",", "").strip().upper()
-    try:
-        if "K" in text:
-            return int(float(text.replace("K", "")) * 1_000)
-        if "M" in text:
-            return int(float(text.replace("M", "")) * 1_000_000)
-        return int(re.sub(r"\D", "", text))
-    except Exception:
-        return 0
-
-
-def _get_client() -> ScrapingBeeClient | None:
-    """Initialize ScrapingBee client."""
+# ============================================================
+# 🧩 Helper: ScrapingBee client & text normalization
+# ============================================================
+def _get_client():
     api_key = os.getenv("SCRAPINGBEE_API_KEY")
     if not api_key:
-        logger.error("❌ Missing SCRAPINGBEE_API_KEY in environment.")
+        logger.error("❌ SCRAPINGBEE_API_KEY missing in environment.")
         return None
     return ScrapingBeeClient(api_key=api_key)
 
 
-# -------------------------------------------------------------
+def _extract_int(text):
+    """Convert follower counts like '3.2K' into integers."""
+    text = text.replace(",", "").strip().upper()
+    try:
+        if "K" in text:
+            return int(float(text.replace("K", "")) * 1_000)
+        elif "M" in text:
+            return int(float(text.replace("M", "")) * 1_000_000)
+        return int(text)
+    except ValueError:
+        return 0
+
+
+# ============================================================
 # 🧩 Main scraper
-# -------------------------------------------------------------
+# ============================================================
 def scrape_twitter_profile(username: str):
     """
-    Scrape Twitter profile (ScrapingBee → Nitter fallback),
-    integrate with Profile, SocialMediaAccount, and RawPost models,
-    perform sentiment analysis, and update stats.
+    Scrape a Twitter profile using ScrapingBee (with Nitter fallback),
+    save tweets, analyze sentiment, and update Profile + SocialMediaAccount.
     """
     client = _get_client()
     if not client:
         return {"error": "Missing API key"}
 
-    html = None
+    html, source_type = None, "twitter"
     twitter_url = f"https://mobile.twitter.com/{username}"
-
     params = {
         "render_js": "true",
         "stealth_proxy": "true",
@@ -70,9 +64,8 @@ def scrape_twitter_profile(username: str):
         "wait_browser": "10000",
     }
 
-    logger.info(f"🕵️ Trying ScrapingBee for Twitter user: {username}")
-
     # --- Try ScrapingBee ---
+    logger.info(f"🕵️ Trying ScrapingBee for {username} ...")
     try:
         resp = client.get(twitter_url, params=params)
         if resp.status_code == 200 and b"data-testid" in resp.content:
@@ -81,7 +74,7 @@ def scrape_twitter_profile(username: str):
         else:
             logger.warning(f"⚠️ ScrapingBee returned {resp.status_code} for {username}")
     except Exception as e:
-        logger.error(f"❌ ScrapingBee request failed for {username}: {e}")
+        logger.error(f"❌ ScrapingBee error for {username}: {e}")
 
     # --- Fallback to Nitter ---
     if not html:
@@ -92,50 +85,60 @@ def scrape_twitter_profile(username: str):
                 r = client.get(nitter_url)
                 if r.status_code == 200:
                     html = r.content.decode("utf-8", errors="ignore")
+                    source_type = "nitter"
                     logger.info(f"✅ Using Nitter mirror: {mirror}")
                     break
             except Exception as e:
-                logger.warning(f"⚠️ Failed Nitter mirror {mirror}: {e}")
+                logger.warning(f"⚠️ Mirror failed {mirror}: {e}")
                 continue
 
     if not html:
-        logger.error(f"❌ All Nitter mirrors failed for {username}")
+        logger.error(f"❌ All sources failed for {username}")
         return {"error": f"All sources failed for {username}"}
 
-    # ---------------------------------------------------------
-    # 🧩 Parse HTML (works for both mobile & Nitter)
-    # ---------------------------------------------------------
+    # ============================================================
+    # 🧩 Parse HTML (Nitter + mobile Twitter layouts)
+    # ============================================================
     soup = BeautifulSoup(html, "html.parser")
     title = soup.title.string.strip() if soup.title else username
 
-    # Bio and avatar
+    # --- Bio ---
     bio_el = soup.select_one(".profile-bio, div[data-testid='UserDescription']")
-    avatar_el = soup.select_one("img.avatar, img[alt*='Image']")
     bio = bio_el.get_text(" ", strip=True) if bio_el else ""
-    avatar_url = avatar_el["src"] if avatar_el and avatar_el.has_attr("src") else ""
 
-    # Followers & Following
-    followers_el = soup.select_one("a[href$='/followers'] span, a[href$='/followers'] .profile-stat-num")
-    following_el = soup.select_one("a[href$='/following'] span, a[href$='/following'] .profile-stat-num")
+    # --- Avatar ---
+    avatar_el = soup.select_one("img.avatar, img[alt*='Image']")
+    avatar_url = avatar_el["src"] if avatar_el and avatar_el.has_attr("src") else ""
+    if avatar_url.startswith("/"):
+        avatar_url = f"{NITTER_MIRRORS[0]}{avatar_url}"
+
+    # --- Followers / Following ---
+    followers_el = soup.select_one("a[href$='/followers'] .profile-stat-num, a[href$='/followers'] span")
+    following_el = soup.select_one("a[href$='/following'] .profile-stat-num, a[href$='/following'] span")
     followers = _extract_int(followers_el.get_text() if followers_el else "")
     following = _extract_int(following_el.get_text() if following_el else "")
 
-    # Tweets
-    tweet_selectors = ["div[data-testid='tweetText']", "div.tweet-content"]
+    # --- Tweets ---
+    tweet_selectors = [
+        "div[data-testid='tweetText']",  # Twitter
+        "div.tweet-content",             # Nitter
+        "div.tweet-content.media-body",
+        "div.main-tweet > p",
+    ]
     tweets = []
     for selector in tweet_selectors:
-        elements = soup.select(selector)
-        if elements:
-            tweets = [div.get_text(" ", strip=True) for div in elements]
+        els = soup.select(selector)
+        if els:
+            tweets = [div.get_text(" ", strip=True) for div in els if div.get_text(strip=True)]
             break
 
     if not tweets:
         logger.warning(f"⚠️ No tweets found for {username}")
         return {"error": "No tweets found"}
 
-    # ---------------------------------------------------------
-    # 🧩 Save Profile + SocialMediaAccount + RawPosts
-    # ---------------------------------------------------------
+    # ============================================================
+    # 🧩 Save to Database
+    # ============================================================
     profile, _ = Profile.objects.get_or_create(
         username=username,
         platform="Twitter",
@@ -150,10 +153,13 @@ def scrape_twitter_profile(username: str):
     sm_account.following = following
     sm_account.save()
 
-    # Save tweets with sentiment
+    # --- Save tweets + sentiment ---
     saved_count = 0
     for text in tweets[:20]:
-        if not RawPost.objects.filter(profile=profile, platform="Twitter", content=text).exists():
+        text = text.strip()
+        if not text:
+            continue
+        if not RawPost.objects.filter(profile=profile, platform="Twitter", content__icontains=text[:50]).exists():
             polarity = round(TextBlob(text).sentiment.polarity, 3)
             RawPost.objects.create(
                 profile=profile,
@@ -170,14 +176,13 @@ def scrape_twitter_profile(username: str):
     profile.save(update_fields=["posts_count"])
     sm_account.save(update_fields=["posts_collected"])
 
-    source_type = "nitter" if any(m in html for m in NITTER_MIRRORS) else "twitter"
     logger.info(
-        f"✅ {username}: saved {saved_count} new tweets (followers={followers}, following={following}, source={source_type})"
+        f"💾 {username}: saved {saved_count}/{len(tweets)} tweets, followers={followers}, following={following}, source={source_type}"
     )
 
-    # ---------------------------------------------------------
-    # 🧩 Return structured summary
-    # ---------------------------------------------------------
+    # ============================================================
+    # 🧩 Return Summary
+    # ============================================================
     return {
         "success": True,
         "source": source_type,
