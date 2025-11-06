@@ -16,16 +16,14 @@
     border-radius: 16px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     padding: 1rem;
-    min-height: 220px; /* matches hashtag card */
+    min-height: 220px;
   }
-
   .chart-wrap img {
-  transition: transform 0.2s ease-in-out;
-}
-
-.chart-wrap img:hover {
-  transform: scale(1.03);
-}
+    transition: transform 0.2s ease-in-out;
+  }
+  .chart-wrap img:hover {
+    transform: scale(1.03);
+  }
   .keyword-badge {
     margin: .25rem;
     border-radius: 12px;
@@ -40,17 +38,18 @@
 
   <!-- Header -->
   <div class="text-center mb-4">
-    <img src="{{ profile.avatar_url }}" class="rounded-circle shadow-sm mb-3" width="110" height="110" alt="avatar">
+    <img src="{{ profile.avatar_url|default:'#' }}" class="rounded-circle shadow-sm mb-3"
+         width="110" height="110" alt="{{ profile.username }} avatar">
     <h3 class="fw-bold mb-0">{{ profile.username }}</h3>
-    <div class="text-muted">{{ profile.full_name }}</div>
-    <span class="badge bg-primary mt-2">{{ profile.platform }}</span>
-    {% if analysis and analysis.data_source %}
-      <span class="badge bg-info text-dark">Data Source: {{ analysis.data_source }}</span>
+    {% if profile.full_name %}
+      <div class="text-muted">{{ profile.full_name }}</div>
     {% endif %}
+    <span class="badge bg-primary mt-2">{{ profile.platform }}</span>
   </div>
 
   <!-- Summary Metrics -->
   <div class="row g-3 mb-4">
+    <!-- Network -->
     <div class="col-6 col-md-3">
       <div class="metric-card text-white" style="background-color: #22267c;">
         <div>Network Size</div>
@@ -59,6 +58,7 @@
       </div>
     </div>
 
+    <!-- Sentiment -->
     <div class="col-6 col-md-3">
       <div class="metric-card bg-success text-white">
         <div>Avg Sentiment</div>
@@ -71,21 +71,28 @@
       </div>
     </div>
 
+    <!-- Activity -->
     <div class="col-6 col-md-3">
       <div class="metric-card bg-warning text-dark">
         <div>Activity</div>
         <div class="metric-value">
-          {% if analysis and analysis.activity_pattern %}
-            {{ analysis.activity_pattern }}
-          {% else %}N/A{% endif %}
+          {% if analysis and analysis.avg_post_time %}
+            {{ analysis.avg_post_time }}
+          {% else %}
+            N/A
+          {% endif %}
         </div>
         <small>
-          {% if analysis and analysis.avg_post_time %}~{{ analysis.avg_post_time }} • {% endif %}
-          {% if analysis and analysis.most_active_days %}{{ analysis.most_active_days|join:", " }}{% endif %}
+          {% if analysis and analysis.most_active_days %}
+            Active on {{ analysis.most_active_days|join:", " }}
+          {% else %}
+            No data
+          {% endif %}
         </small>
       </div>
     </div>
 
+    <!-- Influence -->
     <div class="col-6 col-md-3">
       <div class="metric-card bg-info text-white">
         <div>Influence Score</div>
@@ -147,25 +154,23 @@
         {% endif %}
       </div>
     </div>
-<!-- Word Cloud -->
-<div class="col-md-6 col-lg-6">
-  <div class="chart-wrap h-100 d-flex flex-column justify-content-between">
-    <h6 class="text-secondary fw-bold mb-3">Word Cloud</h6>
-    <div class="d-flex justify-content-center align-items-center flex-grow-1">
-      {% if wordcloud_image %}
-        <img src="data:image/png;base64,{{ wordcloud_image }}" 
-             alt="Word Cloud" 
-             class="img-fluid rounded shadow-sm"
-             style="width: 90%; max-height: 220px; object-fit: contain; background: #fff; padding: .75rem; border-radius: 14px;">
-      {% else %}
-        <p class="text-muted mb-0">Word cloud not generated yet.</p>
-      {% endif %}
+
+    <!-- Word Cloud -->
+    <div class="col-md-6 col-lg-6">
+      <div class="chart-wrap h-100 d-flex flex-column justify-content-between">
+        <h6 class="text-secondary fw-bold mb-3">Word Cloud</h6>
+        <div class="d-flex justify-content-center align-items-center flex-grow-1">
+          {% if wordcloud_image %}
+            <img src="data:image/png;base64,{{ wordcloud_image }}" 
+                 alt="Word Cloud" 
+                 class="img-fluid rounded shadow-sm"
+                 style="width: 90%; max-height: 220px; object-fit: contain; background: #fff; padding: .75rem; border-radius: 14px;">
+          {% else %}
+            <p class="text-muted mb-0">Word cloud not generated yet.</p>
+          {% endif %}
+        </div>
+      </div>
     </div>
-  </div>
-</div>
-
-
-
   </div>
 </div>
 
