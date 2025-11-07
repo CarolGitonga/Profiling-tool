@@ -22,12 +22,12 @@ from profiles.utils.activity_heatmap import generate_activity_heatmap
 from profiles.utils.engagement_timeline import generate_engagement_timeline
 from profiles.utils.github_scraper import scrape_github_profile, unscrape_github_profile
 from profiles.utils.instagram_scraper import unscrape_instagram_profile
+from profiles.utils.keywords_wordcloud import extract_keywords, generate_wordcloud_image
 from profiles.utils.post_timeline import generate_post_timeline
 from profiles.utils.sentiment_distribution import generate_sentiment_distribution
 from profiles.utils.sentiment_timeline import generate_sentiment_timeline
 from profiles.utils.tiktok_scraper import unscrape_tiktok_profile
 from profiles.utils.twitter_scraper import unscrape_twitter_bio
-from profiles.utils.wordcloud import extract_keywords, generate_wordcloud_image
 from sherlock.utils import run_sherlock
 from .models import Profile, RawPost, SocialMediaAccount
 from .forms import UsernameSearchForm
