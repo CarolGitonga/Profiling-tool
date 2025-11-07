@@ -43,12 +43,15 @@ def _extract_int(text: str) -> int:
         return 0
 
 
-def _extract_stat_fallback(soup, label: str):
-    """Fallback: find lines like 'Followers 2,430' in plain text."""
-    for el in soup.find_all(string=re.compile(label, re.IGNORECASE)):
-        numbers = re.findall(r"\d[\d,\.]*[KM]?", el)
-        if numbers:
-            return _extract_int(numbers[0])
+# ============================================================
+# 🧩 Universal Fallback: Search visible text near labels
+# ============================================================
+def _extract_stat_from_text(soup, label: str):
+    """Fallback: detect patterns like 'Followers 4,512' in raw text."""
+    text = " ".join(soup.stripped_strings)
+    match = re.search(rf"([\d,\.KM]+)\s+{label}", text, re.IGNORECASE)
+    if match:
+        return _extract_int(match.group(1))
     return 0
 
 
@@ -124,31 +127,45 @@ def scrape_twitter_profile(username: str):
         avatar_url = f"{NITTER_MIRRORS[0]}{avatar_url}"
 
     # ============================================================
-    # 🧩 Followers / Following (robust multi-layout detection)
+    # 🧩 Followers / Following (universal detection)
     # ============================================================
-    followers_el = soup.select_one(
-        'a[href*="/followers"] .profile-stat-num, '
-        'li a[href*="/followers"] .profile-stat-num, '
-        'a[href*="/followers"] span, '
-        'a[href*="/followers"] div'
-    )
-    following_el = soup.select_one(
-        'a[href*="/following"] .profile-stat-num, '
-        'li a[href*="/following"] .profile-stat-num, '
-        'a[href*="/following"] span, '
-        'a[href*="/following"] div'
-    )
+    followers = 0
+    following = 0
 
-    followers = _extract_int(followers_el.get_text() if followers_el else "")
-    following = _extract_int(following_el.get_text() if following_el else "")
+    # Try multiple HTML patterns
+    for selector in [
+        'a[href*="/followers"] .profile-stat-num',
+        'a[href*="/followers"] span',
+        'a[href*="/followers"] div',
+        'span:contains("Followers")',
+        'div:contains("Followers")',
+    ]:
+        el = soup.select_one(selector)
+        if el:
+            followers = _extract_int(el.get_text())
+            logger.debug(f"🧩 Followers element match: {selector} -> {followers}")
+            break
 
-    # Fallback text search if still zero
+    for selector in [
+        'a[href*="/following"] .profile-stat-num',
+        'a[href*="/following"] span',
+        'a[href*="/following"] div',
+        'span:contains("Following")',
+        'div:contains("Following")',
+    ]:
+        el = soup.select_one(selector)
+        if el:
+            following = _extract_int(el.get_text())
+            logger.debug(f"🧩 Following element match: {selector} -> {following}")
+            break
+
+    # Fallback text parsing if still 0
     if followers == 0:
-        followers = _extract_stat_fallback(soup, "Followers")
+        followers = _extract_stat_from_text(soup, "Followers")
     if following == 0:
-        following = _extract_stat_fallback(soup, "Following")
+        following = _extract_stat_from_text(soup, "Following")
 
-    logger.info(f"📊 Stats parsed: followers={followers}, following={following}")
+    logger.info(f"📊 Stats parsed robustly: followers={followers}, following={following}")
 
     # ============================================================
     # 🧩 Tweets
