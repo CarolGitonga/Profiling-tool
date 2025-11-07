@@ -197,19 +197,7 @@ def profile_dashboard(request, pk):
     sherlock_results = []
     wordcloud_image = None
 
-    # --- WordCloud logic ---
-    if profile.platform == "Sherlock":
-        sherlock_results = request.session.get("sherlock_results", [])
-        text_data = " ".join([res["platform"] for res in sherlock_results])
-    else:
-        text_data = " ".join(
-            [acc.bio or "" for acc in accounts] +
-            [profile.full_name or "", profile.username]
-        )
-
-    if text_data.strip():
-        wordcloud_image = generate_wordcloud(text_data)
-
+    
     # --- Analytics ---
     platform_counts = (
         Profile.objects.values("platform")
