@@ -27,7 +27,7 @@ from profiles.utils.sentiment_distribution import generate_sentiment_distributio
 from profiles.utils.sentiment_timeline import generate_sentiment_timeline
 from profiles.utils.tiktok_scraper import unscrape_tiktok_profile
 from profiles.utils.twitter_scraper import unscrape_twitter_bio
-from profiles.utils.wordcloud import extract_keywords, generate_wordcloud, generate_wordcloud_image
+from profiles.utils.wordcloud import extract_keywords, generate_wordcloud_image
 from sherlock.utils import run_sherlock
 from .models import Profile, RawPost, SocialMediaAccount
 from .forms import UsernameSearchForm
