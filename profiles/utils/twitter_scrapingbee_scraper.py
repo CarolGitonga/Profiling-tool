@@ -1,4 +1,5 @@
 import os
+import re
 import random
 import logging
 from bs4 import BeautifulSoup
@@ -9,7 +10,7 @@ from profiles.models import Profile, SocialMediaAccount, RawPost
 
 logger = logging.getLogger(__name__)
 
-# ✅ Updated Nitter mirrors (active as of 2025)
+# ✅ Active Nitter mirrors (as of 2025)
 NITTER_MIRRORS = [
     "https://nitter.net",
     "https://nitter.privacydev.net",
@@ -19,7 +20,7 @@ NITTER_MIRRORS = [
 
 
 # ============================================================
-# 🧩 Helper: ScrapingBee client & text normalization
+# 🧩 Helper: ScrapingBee client & value parsing
 # ============================================================
 def _get_client():
     api_key = os.getenv("SCRAPINGBEE_API_KEY")
@@ -29,8 +30,8 @@ def _get_client():
     return ScrapingBeeClient(api_key=api_key)
 
 
-def _extract_int(text):
-    """Convert follower counts like '3.2K' into integers."""
+def _extract_int(text: str) -> int:
+    """Convert follower counts like '3.2K' or '1,024' into integers."""
     text = text.replace(",", "").strip().upper()
     try:
         if "K" in text:
@@ -42,13 +43,22 @@ def _extract_int(text):
         return 0
 
 
+def _extract_stat_fallback(soup, label: str):
+    """Fallback: find lines like 'Followers 2,430' in plain text."""
+    for el in soup.find_all(string=re.compile(label, re.IGNORECASE)):
+        numbers = re.findall(r"\d[\d,\.]*[KM]?", el)
+        if numbers:
+            return _extract_int(numbers[0])
+    return 0
+
+
 # ============================================================
-# 🧩 Main scraper
+# 🧩 Main Scraper
 # ============================================================
 def scrape_twitter_profile(username: str):
     """
-    Scrape a Twitter profile using ScrapingBee (with Nitter fallback),
-    save tweets, analyze sentiment, and update Profile + SocialMediaAccount.
+    Scrape a Twitter profile via ScrapingBee (fallback to Nitter).
+    Saves tweets, computes sentiment, and updates database records.
     """
     client = _get_client()
     if not client:
@@ -56,6 +66,7 @@ def scrape_twitter_profile(username: str):
 
     html, source_type = None, "twitter"
     twitter_url = f"https://mobile.twitter.com/{username}"
+
     params = {
         "render_js": "true",
         "stealth_proxy": "true",
@@ -64,7 +75,7 @@ def scrape_twitter_profile(username: str):
         "wait_browser": "10000",
     }
 
-    # --- Try ScrapingBee ---
+    # --- Try ScrapingBee (mobile.twitter.com)
     logger.info(f"🕵️ Trying ScrapingBee for {username} ...")
     try:
         resp = client.get(twitter_url, params=params)
@@ -76,7 +87,7 @@ def scrape_twitter_profile(username: str):
     except Exception as e:
         logger.error(f"❌ ScrapingBee error for {username}: {e}")
 
-    # --- Fallback to Nitter ---
+    # --- Fallback to Nitter mirrors
     if not html:
         logger.warning(f"⚠️ Falling back to Nitter for {username}")
         for mirror in random.sample(NITTER_MIRRORS, len(NITTER_MIRRORS)):
@@ -97,41 +108,54 @@ def scrape_twitter_profile(username: str):
         return {"error": f"All sources failed for {username}"}
 
     # ============================================================
-    # 🧩 Parse HTML (Nitter + mobile Twitter layouts)
+    # 🧩 Parse HTML (Works for both layouts)
     # ============================================================
     soup = BeautifulSoup(html, "html.parser")
     title = soup.title.string.strip() if soup.title else username
 
-    # --- Bio ---
+    # --- Bio
     bio_el = soup.select_one(".profile-bio, div[data-testid='UserDescription']")
     bio = bio_el.get_text(" ", strip=True) if bio_el else ""
 
-    # --- Avatar ---
+    # --- Avatar
     avatar_el = soup.select_one("img.avatar, img[alt*='Image']")
     avatar_url = avatar_el["src"] if avatar_el and avatar_el.has_attr("src") else ""
     if avatar_url.startswith("/"):
         avatar_url = f"{NITTER_MIRRORS[0]}{avatar_url}"
 
-    # Followers & Following
+    # ============================================================
+    # 🧩 Followers / Following (robust multi-layout detection)
+    # ============================================================
     followers_el = soup.select_one(
         'a[href*="/followers"] .profile-stat-num, '
-       'li a[href*="/followers"] .profile-stat-num, '
-      'a[href*="/followers"] span'
+        'li a[href*="/followers"] .profile-stat-num, '
+        'a[href*="/followers"] span, '
+        'a[href*="/followers"] div'
     )
     following_el = soup.select_one(
         'a[href*="/following"] .profile-stat-num, '
-       'li a[href*="/following"] .profile-stat-num, '
-       'a[href*="/following"] span'
+        'li a[href*="/following"] .profile-stat-num, '
+        'a[href*="/following"] span, '
+        'a[href*="/following"] div'
     )
+
     followers = _extract_int(followers_el.get_text() if followers_el else "")
     following = _extract_int(following_el.get_text() if following_el else "")
-    
 
+    # Fallback text search if still zero
+    if followers == 0:
+        followers = _extract_stat_fallback(soup, "Followers")
+    if following == 0:
+        following = _extract_stat_fallback(soup, "Following")
 
-    # --- Tweets ---
+    logger.info(f"📊 Stats parsed: followers={followers}, following={following}")
+
+    # ============================================================
+    # 🧩 Tweets
+    # ============================================================
     tweet_selectors = [
-        "div[data-testid='tweetText']",  # Twitter
-        "div.tweet-content",             # Nitter
+        "div[data-testid='tweetText']",
+        "div.tweet-content",
         "div.tweet-content.media-body",
         "div.main-tweet > p",
     ]
@@ -163,7 +187,7 @@ def scrape_twitter_profile(username: str):
     sm_account.following = following
     sm_account.save()
 
-    # --- Save tweets + sentiment ---
+    # --- Save tweets + sentiment
     saved_count = 0
     for text in tweets[:20]:
         text = text.strip()
