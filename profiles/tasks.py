@@ -27,75 +27,91 @@ def ensure_behavioral_record(profile):
 
 # ==========================================================
 # 🐦 TWITTER TASK
-# ==========================================================
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="twitter")
 def scrape_twitter_task(self, username: str) -> dict:
-    """Scrape Twitter profile via ScrapingBee and save to DB."""
+    """
+    Celery task to scrape a Twitter profile via ScrapingBee/Nitter,
+    update database models, and trigger behavioral analysis.
+    """
     try:
+        # --- Run scraper ---
+        logger.info(f"🚀 Starting Twitter scrape task for @{username}")
         result = scrape_twitter_profile(username)
-        profile_data = result.get("profile", {})
-        posts = result.get("recent_posts", [])
 
-        # Handle scrape errors
-        if "error" in profile_data:
-            reason = profile_data["error"]
-            logger.warning(f"Twitter scrape failed for {username}: {reason}")
+        # --- Handle scrape failure ---
+        if not result.get("success"):
+            reason = result.get("error", "Unknown scrape failure")
+            logger.warning(f"⚠️ Twitter scrape failed for {username}: {reason}")
             raise Exception(reason)
 
-        # --- Save Profile ---
-        profile, _ = Profile.objects.get_or_create(username=username, platform="Twitter")
-        profile.full_name = profile_data.get("name", username)
-        profile.avatar_url = profile_data.get("profile_image")
+        # --- Upsert Profile ---
+        profile, _ = Profile.objects.get_or_create(
+            username=username,
+            platform="Twitter",
+            defaults={
+                "full_name": result.get("full_name", username),
+                "avatar_url": result.get("avatar_url", ""),
+            },
+        )
+        profile.full_name = result.get("full_name", username)
+        profile.avatar_url = result.get("avatar_url", "")
+        profile.posts_count = result.get("total_tweets_scraped", 0)
         profile.save()
 
-        # --- Save SocialMediaAccount ---
+        # --- Upsert SocialMediaAccount ---
         SocialMediaAccount.objects.update_or_create(
             profile=profile,
             platform="Twitter",
             defaults={
-                "bio": profile_data.get("description", ""),
-                "followers": profile_data.get("followers", 0),
-                "following": profile_data.get("following", 0),
-                "posts_collected": len(posts),
+                "bio": result.get("bio", ""),
+                "followers": result.get("followers", 0),
+                "following": result.get("following", 0),
+                "posts_collected": result.get("tweets_saved", 0),
                 "is_private": False,
-                "external_url": profile_data.get("url"),
+                "external_url": None,
             },
         )
 
-        # --- Save Tweets ---
-        saved_count = 0
-        for tweet in posts:
-            caption = tweet.get("text", "")
-            timestamp = tweet.get("timestamp", timezone.now())
-            sentiment = round(TextBlob(caption).sentiment.polarity, 2)
+        # --- Tweets are already saved inside scraper ---
+        # But double-check at least one exists
+        saved_posts = RawPost.objects.filter(profile=profile, platform="Twitter").count()
+        if saved_posts == 0:
+            logger.warning(f"⚠️ No tweets saved for {username}.")
+        else:
+            logger.info(f"💾 Verified {saved_posts} tweets saved for {username}")
 
-            RawPost.objects.update_or_create(
-                profile=profile,
-                content=caption[:500],
-                platform="Twitter",
-                timestamp=timestamp,
-                defaults={
-                    "likes": tweet.get("likes", 0),
-                    "comments": tweet.get("replies", 0),
-                    "sentiment_score": sentiment,
-                },
-            )
-            saved_count += 1
+        # --- Trigger Behavioral Analysis ---
+        try:
+            ensure_behavioral_record(profile)
+            perform_behavioral_analysis.delay(profile.id)
+            logger.info(f"🧠 Behavioral analysis queued for {username} (Twitter)")
+        except Exception as e:
+            logger.warning(f"⚠️ Behavioral analysis not started: {e}")
 
-        logger.info(f"✅ Saved {saved_count} tweets for {username}")
-
-        ensure_behavioral_record(profile)
-        perform_behavioral_analysis.delay(profile.id)
-        logger.info(f"✅ Behavioral record ensured for {username} (Twitter)")
-        return {"success": True, "username": username, "platform": "Twitter"}
+        logger.info(f"✅ Completed Twitter scrape for @{username}")
+        return {
+            "success": True,
+            "username": username,
+            "platform": "Twitter",
+            "followers": result.get("followers", 0),
+            "following": result.get("following", 0),
+            "tweets": result.get("total_tweets_scraped", 0),
+            "source": result.get("source", "unknown"),
+        }
 
     except Exception as e:
-        logger.exception(f"Twitter scraping error for {username}")
+        logger.exception(f"❌ Error scraping Twitter for {username}")
         try:
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
         except self.MaxRetriesExceededError:
-            logger.error(f"Max retries exceeded for Twitter scrape: {username}")
-            return {"success": False, "username": username, "platform": "Twitter", "reason": str(e)}
+            logger.error(f"🚫 Max retries exceeded for Twitter scrape: {username}")
+            return {
+                "success": False,
+                "username": username,
+                "platform": "Twitter",
+                "reason": str(e),
+            }
 
 
 # ==========================================================
