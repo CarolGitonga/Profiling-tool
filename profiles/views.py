@@ -263,7 +263,7 @@ def behavioral_dashboard(request, username, platform):
     engagement_labels, engagement_values = generate_engagement_timeline(posts)
 
     # 4️⃣ Post Timeline (Frequency per Day)
-    post_timeline_labels, post_timeline_values = generate_post_timeline(posts)
+    post_timeline_html = generate_post_timeline(username, platform)
 
     # 5️⃣ Activity Heatmap
     heatmap_data = generate_activity_heatmap(posts)
@@ -300,8 +300,7 @@ def behavioral_dashboard(request, username, platform):
         "engagement_labels": engagement_labels,
         "engagement_values": engagement_values,
         "heatmap_data": heatmap_data,
-        "post_timeline_labels": post_timeline_labels,
-        "post_timeline_values": post_timeline_values,
+        "timeline_html": post_timeline_html,
         "top_keywords": top_keywords,
         "wordcloud_image": wordcloud_image,
     }
