@@ -20,6 +20,7 @@ from profiles.tasks import (
 )
 from profiles.utils.activity_heatmap import generate_activity_heatmap
 from profiles.utils.engagement_timeline import generate_engagement_timeline
+from profiles.utils.entity_graph import generate_entity_graph
 from profiles.utils.github_scraper import scrape_github_profile, unscrape_github_profile
 from profiles.utils.instagram_scraper import unscrape_instagram_profile
 from profiles.utils.keywords_wordcloud import extract_keywords, generate_wordcloud_image
@@ -268,6 +269,9 @@ def behavioral_dashboard(request, username, platform):
     # 5️⃣ Activity Heatmap
     activity_heatmap_image = generate_activity_heatmap(username, platform)
 
+    # Entity graph
+    entity_graph_url = generate_entity_graph(username, platform)
+
     # 6️⃣ Sentiment Distribution
     sentiment_pie = generate_sentiment_distribution(sentiment_values)
 
@@ -301,6 +305,7 @@ def behavioral_dashboard(request, username, platform):
         "engagement_values": engagement_values,
         "activity_heatmap_image": activity_heatmap_image,
         "timeline_html": post_timeline_html,
+        "entity_graph_url": entity_graph_url,
         "top_keywords": top_keywords,
         "wordcloud_image": wordcloud_image,
     }

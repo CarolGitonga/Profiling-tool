@@ -122,6 +122,19 @@
       <p class="text-muted mb-0">No posting data available yet.</p>
     {% endif %}
   </div>
+  <!-- 🧩 Entity Graph -->
+<div class="chart-wrap mt-4">
+  <h6 class="text-secondary fw-bold mb-3">Entity Co-occurrence Graph</h6>
+  {% if entity_graph_url %}
+    <iframe src="{{ entity_graph_url }}" 
+            width="100%" 
+            height="600" 
+            style="border: none; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></iframe>
+  {% else %}
+    <p class="text-muted mb-0">Entity graph not yet generated or no entities found.</p>
+  {% endif %}
+</div>
+
 
   <!-- 🧩 Keywords / Word Cloud -->
   <div class="row g-4">
