@@ -266,7 +266,7 @@ def behavioral_dashboard(request, username, platform):
     post_timeline_html = generate_post_timeline(username, platform)
 
     # 5️⃣ Activity Heatmap
-    heatmap_data = generate_activity_heatmap(posts)
+    activity_heatmap_image = generate_activity_heatmap(username, platform)
 
     # 6️⃣ Sentiment Distribution
     sentiment_pie = generate_sentiment_distribution(sentiment_values)
@@ -299,7 +299,7 @@ def behavioral_dashboard(request, username, platform):
         "sentiment_timeline_values": sentiment_values_json,
         "engagement_labels": engagement_labels,
         "engagement_values": engagement_values,
-        "heatmap_data": heatmap_data,
+        "activity_heatmap_image": activity_heatmap_image,
         "timeline_html": post_timeline_html,
         "top_keywords": top_keywords,
         "wordcloud_image": wordcloud_image,

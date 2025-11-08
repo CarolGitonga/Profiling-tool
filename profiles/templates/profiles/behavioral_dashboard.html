@@ -49,7 +49,6 @@
 
   <!-- Summary Metrics -->
   <div class="row g-3 mb-4">
-    <!-- Network -->
     <div class="col-6 col-md-3">
       <div class="metric-card text-white" style="background-color: #22267c;">
         <div>Network Size</div>
@@ -58,7 +57,6 @@
       </div>
     </div>
 
-    <!-- Sentiment -->
     <div class="col-6 col-md-3">
       <div class="metric-card bg-success text-white">
         <div>Avg Sentiment</div>
@@ -71,28 +69,22 @@
       </div>
     </div>
 
-    <!-- Activity -->
     <div class="col-6 col-md-3">
       <div class="metric-card bg-warning text-dark">
         <div>Activity</div>
         <div class="metric-value">
           {% if analysis and analysis.avg_post_time %}
             {{ analysis.avg_post_time }}
-          {% else %}
-            N/A
-          {% endif %}
+          {% else %}N/A{% endif %}
         </div>
         <small>
           {% if analysis and analysis.most_active_days %}
             Active on {{ analysis.most_active_days|join:", " }}
-          {% else %}
-            No data
-          {% endif %}
+          {% else %}No data{% endif %}
         </small>
       </div>
     </div>
 
-    <!-- Influence -->
     <div class="col-6 col-md-3">
       <div class="metric-card bg-info text-white">
         <div>Influence Score</div>
@@ -102,44 +94,27 @@
     </div>
   </div>
 
-  <!-- Charts -->
-  <div class="row g-4">
-    <!-- Sentiment Pie -->
-    <div class="col-md-4">
-      <div class="chart-wrap">
-        <h6 class="text-secondary fw-bold mb-3">Sentiment Distribution</h6>
-        <canvas id="sentimentPie"></canvas>
-      </div>
-    </div>
-
-    <!-- Heatmap -->
-    <div class="col-md-8">
-      <div class="chart-wrap">
-        <h6 class="text-secondary fw-bold mb-3">Activity Heatmap (Weekday × Hour)</h6>
-        <canvas id="activityHeatmap"></canvas>
-        <small class="text-muted d-block mt-2">Darker = more posts</small>
-      </div>
-    </div>
-
-    <!-- Sentiment Timeline -->
-    <div class="col-md-6">
-      <div class="chart-wrap">
-        <h6 class="text-secondary fw-bold mb-3">Sentiment Over Time</h6>
-        <canvas id="sentimentLine"></canvas>
-      </div>
-    </div>
-
-    <!-- Engagement Trend -->
-    <div class="col-md-6">
-      <div class="chart-wrap">
-        <h6 class="text-secondary fw-bold mb-3">Engagement Trend (Likes + Comments)</h6>
-        <canvas id="engagementLine"></canvas>
-      </div>
-    </div>
+  <!-- 🧩 Sentiment Distribution -->
+  <div class="chart-wrap mb-4">
+    <h6 class="text-secondary fw-bold mb-3">Sentiment Distribution</h6>
+    <canvas id="sentimentPie"></canvas>
   </div>
 
-  <!-- 🧩 Posting Timeline (Plotly) -->
-  <div class="chart-wrap mt-4">
+  <!-- 🧩 Activity Heatmap -->
+  <div class="chart-wrap mb-4">
+    <h6 class="text-secondary fw-bold mb-3">Activity Heatmap (Weekday × Hour)</h6>
+    {% if activity_heatmap_image %}
+      <img src="data:image/png;base64,{{ activity_heatmap_image }}" 
+           alt="Activity Heatmap"
+           class="img-fluid rounded shadow-sm"
+           style="width: 100%; max-height: 400px; object-fit: contain;">
+    {% else %}
+      <p class="text-muted mb-0">No activity data available yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- 🧩 Posting Timeline -->
+  <div class="chart-wrap mb-4">
     <h6 class="text-secondary fw-bold mb-3">Posting Frequency Over Time</h6>
     {% if timeline_html %}
       {{ timeline_html|safe }}
@@ -148,8 +123,8 @@
     {% endif %}
   </div>
 
-  <!-- Keywords / Word Cloud -->
-  <div class="row g-4 mt-1">
+  <!-- 🧩 Keywords / Word Cloud -->
+  <div class="row g-4">
     <div class="col-md-6">
       <div class="chart-wrap">
         <h6 class="text-secondary fw-bold mb-3">Top Keywords & Hashtags</h6>
@@ -165,8 +140,7 @@
       </div>
     </div>
 
-    <!-- Word Cloud -->
-    <div class="col-md-6 col-lg-6">
+    <div class="col-md-6">
       <div class="chart-wrap h-100 d-flex flex-column justify-content-between">
         <h6 class="text-secondary fw-bold mb-3">Word Cloud</h6>
         <div class="d-flex justify-content-center align-items-center flex-grow-1">
@@ -184,13 +158,9 @@
   </div>
 </div>
 
-<!-- Chart.js + Matrix plugin -->
+<!-- Chart.js only used for sentiment pie -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
 <script>
-  const WEEKDAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-
-  // --- Sentiment Pie ---
   const sentimentData = {{ sentiment_pie|default:"[0,0,0]"|safe }};
   new Chart(document.getElementById('sentimentPie'), {
     type: 'doughnut',
@@ -202,77 +172,6 @@
       }]
     },
     options: { plugins: { legend: { position: 'bottom' } } }
-  });
-
-  // --- Heatmap ---
-  const heatData = {{ heatmap_data|default:"[]"|safe }};
-  new Chart(document.getElementById('activityHeatmap'), {
-    type: 'matrix',
-    data: {
-      datasets: [{
-        label: 'Posts',
-        data: heatData,
-        width: ({chart}) => (chart.chartArea.width / 24) - 2,
-        height: ({chart}) => (chart.chartArea.height / 7) - 2,
-        backgroundColor: ctx => {
-          const v = ctx.raw.v || 0;
-          const alpha = Math.min(0.15 + v / 8, 0.9);
-          return `rgba(13,110,253,${alpha})`;
-        },
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-      }]
-    },
-    options: {
-      scales: {
-        x: { type: 'linear', min: 0, max: 23, ticks: { stepSize: 3 }, title: { display: true, text: 'Hour (0–23)' } },
-        y: { type: 'linear', min: 0, max: 6, ticks: {
-          stepSize: 1,
-          callback: v => WEEKDAYS[v] || v
-        }}
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: {
-          title: items => `${WEEKDAYS[items[0].raw.y]} @ ${items[0].raw.x}:00`,
-          label: item => `Posts: ${item.raw.v}`
-        }}
-      }
-    }
-  });
-
-  // --- Sentiment Line ---
-  new Chart(document.getElementById('sentimentLine'), {
-    type: 'line',
-    data: {
-      labels: {{ sentiment_timeline_labels|default:"[]"|safe }},
-      datasets: [{
-        label: 'Sentiment',
-        data: {{ sentiment_timeline_values|default:"[]"|safe }},
-        borderColor: '#0d6efd',
-        pointBackgroundColor: '#0d6efd',
-        fill: false,
-        tension: 0.3
-      }]
-    },
-    options: { scales: { y: { min: -1, max: 1 } }, plugins: { legend: { display: false } } }
-  });
-
-  // --- Engagement Line ---
-  new Chart(document.getElementById('engagementLine'), {
-    type: 'line',
-    data: {
-      labels: {{ engagement_labels|safe }},
-      datasets: [{
-        label: 'Likes + Comments',
-        data: {{ engagement_values|safe }},
-        borderColor: '#20c997',
-        pointBackgroundColor: '#20c997',
-        fill: false,
-        tension: 0.3
-      }]
-    },
-    options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
   });
 </script>
 {% endblock %}
