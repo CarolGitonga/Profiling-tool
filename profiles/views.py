@@ -7,6 +7,8 @@ from django.db import transaction
 from django.db.models import Count, Avg, F
 from django.db.models.functions import TruncMonth
 from collections import Counter
+from django.conf import settings
+import os
 
 from dateutil.parser import parse as parse_date
 from celery.result import AsyncResult
@@ -269,8 +271,21 @@ def behavioral_dashboard(request, username, platform):
     # 5️⃣ Activity Heatmap
     activity_heatmap_image = generate_activity_heatmap(username, platform)
 
-    # Entity graph
-    entity_graph_url = generate_entity_graph(username, platform)
+    # 🧠 Generate Entity Graph
+    entity_graph_url = None
+    try:
+        graph_path = generate_entity_graph(username, platform)
+        if graph_path:
+            if graph_path.startswith("/media/"):
+                entity_graph_url = request.build_absolute_uri(graph_path)
+            elif os.path.exists(os.path.join(settings.MEDIA_ROOT, graph_path)):
+                entity_graph_url = request.build_absolute_uri(
+                    os.path.join(settings.MEDIA_URL, os.path.basename(graph_path))
+                )
+    except Exception as e:
+        print(f"⚠️ Entity graph generation failed: {e}")
+        
+
 
     # 6️⃣ Sentiment Distribution
     sentiment_pie = generate_sentiment_distribution(sentiment_values)
