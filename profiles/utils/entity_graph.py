@@ -39,11 +39,9 @@ def generate_entity_graph(username, platform="Twitter"):
 
         # --- Named entities (PERSON, ORG, GPE, PRODUCT)
         ents = [ent.text.strip() for ent in doc.ents if ent.label_ in {"PERSON", "ORG", "GPE", "PRODUCT"}]
-
         # --- Hashtags and mentions
         hashtags = [w for w in text.split() if w.startswith("#")]
         mentions = [w for w in text.split() if w.startswith("@")]
-
         # --- Capitalized words (possible names)
         caps = [t.text for t in doc if t.text.istitle() and len(t.text) > 2 and not t.is_stop]
 
@@ -62,7 +60,17 @@ def generate_entity_graph(username, platform="Twitter"):
     if len(G.nodes) == 0:
         print(f"⚠️ No entities or hashtags found for {username}.")
         return None
-
+    # Detect clusters (communities)
+    try:
+        from networkx.algorithms.community import greedy_modularity_communities
+        communities = list(greedy_modularity_communities(G))
+    except Exception:
+        communities = [set(G.nodes())]
+    # Assign cluster index to each node
+    cluster_map = {}
+    for i, comm in enumerate(communities):
+        for node in comm:
+            cluster_map[node] = i
     # ======================================================
     # 🎨 Visualize with PyVis
     # ======================================================
@@ -70,16 +78,36 @@ def generate_entity_graph(username, platform="Twitter"):
     net.barnes_hut(gravity=-25000, central_gravity=0.3, spring_length=120)
     net.from_nx(G)
 
+    # Node styling by type
+    cluster_colors = [
+        "#007bff", "#28a745", "#17a2b8", "#ffc107", "#dc3545", "#6f42c1", "#20c997"
+    ]
+
     for node in net.nodes:
-        degree = G.degree(node["id"])
-        node["size"] = 15 + degree * 2.5
-        if node["id"].startswith("#"):
-            node["color"] = "#007bff"   # hashtags
-        elif node["id"].startswith("@"):
-            node["color"] = "#17a2b8"   # mentions
+        node_id = node["id"]
+        degree = G.degree(node_id)
+        cluster_id = cluster_map.get(node_id, 0)
+
+        # Color logic
+        if node_id.startswith("#"):
+            color = "#007bff"  # hashtag
+        elif node_id.startswith("@"):
+            color = "#17a2b8"  # mention
         else:
-            node["color"] = "#28a745"   # entities/caps
-        node["title"] = f"{node['id']}<br>Connections: {degree}"
+            color = cluster_colors[cluster_id % len(cluster_colors)]
+        node["color"] = color
+        node["size"] = 15 + degree * 2.5
+        node["title"] = f"<b>{node_id}</b><br>Connections: {degree}<br>Cluster: {cluster_id}"
+    # Add labels for top nodes per cluster
+    label_nodes = []
+    for i, comm in enumerate(communities):
+        # pick top 3 nodes by degree in cluster
+        subgraph = G.subgraph(comm)
+        top_nodes = sorted(subgraph.degree, key=lambda x: x[1], reverse=True)[:3]
+        label_nodes.extend([n for n, _ in top_nodes])
+    for node in net.nodes:
+        node_id = node["id"]
+        node["label"] = node_id if node_id in label_nodes else ""
 
     # ======================================================
     # 💾 Safe file output (Render-compatible)
