@@ -139,6 +139,11 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Allow embedding for media files (entity graphs)
+X_FRAME_OPTIONS = "SAMEORIGIN"
+
+# Optional but recommended for Render iframe use
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
 
 
 # Default primary key field type
