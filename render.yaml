@@ -1,14 +1,19 @@
 services:
+  # ------------------------
   # Django Web Service
+  # ------------------------
   - type: web
     name: people-profiling-web
     env: python
+
     buildCommand: >
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput &&
       python manage.py migrate
+
     startCommand: gunicorn people_profiling.wsgi:application --preload --workers=4 --threads=2 --timeout 120
     autoDeploy: true
+
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: profiling.settings.production
@@ -31,15 +36,34 @@ services:
         value: "people-profiling.onrender.com"
       # Cloudinary
       - key: CLOUDINARY_URL
-        sync: false # paste your Cloudinary URL here manually
+        sync: false # paste your Cloudinary URL manually
 
+    # ------------------------
+    # Serve static + media files
+    # ------------------------
+    staticPublishPath: staticfiles
+
+    routes:
+      # Serve static assets
+      - type: rewrite
+        source: /static/(.*)
+        destination: /opt/render/project/src/staticfiles/$1
+
+      # ✅ Serve uploaded / generated media files (graphs, wordclouds, etc.)
+      - type: rewrite
+        source: /media/(.*)
+        destination: /opt/render/project/src/media/$1
+
+  # ------------------------
   # Celery Worker
+  # ------------------------
   - type: worker
     name: people-profiling-worker
     env: python
     plan: starter
     buildCommand: "pip install -r requirements.txt"
     startCommand: "celery -A people_profiling worker -l info -Q default,instagram,tiktok,twitter"
+
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: profiling.settings.production
@@ -59,8 +83,10 @@ services:
       - key: CLOUDINARY_URL
         sync: false
 
+# ------------------------
+# PostgreSQL Database
+# ------------------------
 databases:
-  # Postgres Database
   - name: people-profiling-db
     databaseName: peopleprofiling
     user: profilinguser
