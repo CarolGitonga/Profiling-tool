@@ -61,7 +61,9 @@ services:
     name: people-profiling-worker
     env: python
     plan: starter
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install --with-deps chromium
     startCommand: "celery -A people_profiling worker -l info -Q default,instagram,tiktok,twitter"
 
     envVars:
