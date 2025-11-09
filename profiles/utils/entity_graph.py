@@ -68,10 +68,9 @@ def generate_entity_graph(username, platform="Twitter"):
         node["color"] = "#007bff" if node["id"].startswith("#") else "#28a745"
         node["title"] = f"{node['id']}<br>Connections: {degree}"
 
+        # ======================================================
+    # 💾 Safe File Output (Render + Local + CDN fix)
     # ======================================================
-    # 💾 Safe File Output (Render + Local)
-    # ======================================================
-    # Use MEDIA_ROOT if defined, else fallback to /tmp/media for Render
     output_dir = getattr(settings, "MEDIA_ROOT", None) or os.path.join("/tmp", "media")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -79,15 +78,15 @@ def generate_entity_graph(username, platform="Twitter"):
     output_path = os.path.join(output_dir, filename)
 
     try:
-        net.write_html(output_path, notebook=False, local=True)
+        # ✅ Use remote CDN resources so PyVis JS loads properly on Render
+        net.write_html(output_path, notebook=False, local=False, cdn_resources="remote")
     except Exception as e:
         print(f"❌ Failed to write entity graph: {e}")
         return None
 
     print(f"✅ Entity graph written to {output_path}")
 
-    # ======================================================
-    # 🌐 Return URL for Django templates
-    # ======================================================
+    # ✅ Return correct URL for iframe
     media_url = getattr(settings, "MEDIA_URL", "/media/")
-    return os.path.join(media_url, filename)
+    # If using /tmp, serve via /media/ to keep iframe path stable
+    return os.path.join(media_url.strip("/"), filename)
