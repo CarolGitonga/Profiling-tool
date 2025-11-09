@@ -122,19 +122,44 @@
       <p class="text-muted mb-0">No posting data available yet.</p>
     {% endif %}
   </div>
-  <!-- 🧩 Entity Graph -->
+<!-- 🧩 Entity Co-occurrence Graph -->
 <div class="chart-wrap mt-4">
   <h6 class="text-secondary fw-bold mb-3">Entity Co-occurrence Graph</h6>
+
   {% if entity_graph_url %}
-    <iframe src="{{ entity_graph_url }}" 
-            width="100%" 
-            height="600" 
-            style="border: none; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    <!-- Interactive Entity Graph -->
+    <iframe 
+      src="{{ entity_graph_url }}" 
+      width="100%" 
+      height="600"
+      loading="lazy"
+      style="border: none; border-radius: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);">
     </iframe>
+
+    <!-- 🧠 Cluster Summaries -->
+    {% if cluster_summaries %}
+      <div class="mt-3 p-3 bg-light rounded shadow-sm">
+        <h6 class="fw-bold text-secondary mb-2">Detected Clusters</h6>
+        <ul class="list-unstyled mb-0">
+          {% for cluster in cluster_summaries %}
+            <li class="mb-1">
+              <span class="badge rounded-circle me-2" 
+                    style="width: 12px; height: 12px; display: inline-block;
+                           background-color: {{ cluster_colors|default:'#007bff'|safe }};">
+              </span>
+              {{ cluster }}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% else %}
+      <p class="text-muted mt-2 mb-0">No clusters detected or data insufficient.</p>
+    {% endif %}
   {% else %}
     <p class="text-muted mb-0">Entity graph not yet generated or no entities found.</p>
   {% endif %}
 </div>
+
 
 
 

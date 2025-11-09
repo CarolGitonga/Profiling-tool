@@ -274,8 +274,9 @@ def behavioral_dashboard(request, username, platform):
 
     # 🧠 Generate Entity Graph
     entity_graph_url = None
+    cluster_summaries = []
     try:
-        graph_path = generate_entity_graph(username, platform)
+        graph_path, cluster_summaries = generate_entity_graph(username, platform)
         if graph_path:
             if graph_path.startswith("/media/"):
                 entity_graph_url = request.build_absolute_uri(graph_path)
@@ -330,6 +331,7 @@ def behavioral_dashboard(request, username, platform):
         "activity_heatmap_image": activity_heatmap_image,
         "timeline_html": post_timeline_html,
         "entity_graph_url": entity_graph_url,
+        "cluster_summaries": cluster_summaries,
         "top_keywords": top_keywords,
         "wordcloud_image": wordcloud_image,
     }

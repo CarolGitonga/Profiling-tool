@@ -108,6 +108,18 @@ def generate_entity_graph(username, platform="Twitter"):
     for node in net.nodes:
         node_id = node["id"]
         node["label"] = node_id if node_id in label_nodes else ""
+    # Generate descriptive cluster summaries
+    cluster_summaries = []
+    for i, comm in enumerate(communities):
+        subgraph = G.subgraph(comm)
+        top_nodes = sorted(subgraph.degree, key=lambda x: x[1], reverse=True)[:5]
+        top_names = [n for n, _ in top_nodes]
+        summary = f"Cluster {i+1}: Top entities — {', '.join(top_names)}"
+        cluster_summaries.append(summary)
+    print("\n📊 CLUSTER SUMMARIES")
+    for s in cluster_summaries:
+        print(" -", s)
+
 
     # ======================================================
     # 💾 Safe file output (Render-compatible)
