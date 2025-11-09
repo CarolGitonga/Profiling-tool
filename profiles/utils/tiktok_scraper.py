@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # 🔑 Config
 # ============================================================
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
-REGIONS = ["us", "fr", "de", "gb", "ca"]
+REGIONS = ["us", "fr", "de", "gb", "ca", "ke"]
 
 
 # ============================================================
