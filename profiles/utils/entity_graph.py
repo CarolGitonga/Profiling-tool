@@ -13,6 +13,7 @@ try:
 except OSError:
     raise RuntimeError("⚠️ spaCy model 'en_core_web_sm' not found. Run: python -m spacy download en_core_web_sm")
 
+
 # ======================================================
 # Generate Entity Graph (NER + hashtags + mentions + caps)
 # ======================================================
@@ -46,10 +47,10 @@ def generate_entity_graph(username, platform="Twitter"):
         # --- Capitalized words (possible names)
         caps = [t.text for t in doc if t.text.istitle() and len(t.text) > 2 and not t.is_stop]
 
-        # Combine all and deduplicate
+        # Combine and deduplicate
         all_entities = list(set(ents + hashtags + mentions + caps))
 
-        # Create connections between all co-occurring entities
+        # Create co-occurrence edges
         for i in range(len(all_entities)):
             for j in range(i + 1, len(all_entities)):
                 e1, e2 = all_entities[i], all_entities[j]
@@ -73,11 +74,11 @@ def generate_entity_graph(username, platform="Twitter"):
         degree = G.degree(node["id"])
         node["size"] = 15 + degree * 2.5
         if node["id"].startswith("#"):
-            node["color"] = "#007bff"  # hashtags = blue
+            node["color"] = "#007bff"   # hashtags
         elif node["id"].startswith("@"):
-            node["color"] = "#17a2b8"  # mentions = cyan
+            node["color"] = "#17a2b8"   # mentions
         else:
-            node["color"] = "#28a745"  # entities/capitalized words = green
+            node["color"] = "#28a745"   # entities/caps
         node["title"] = f"{node['id']}<br>Connections: {degree}"
 
     # ======================================================
@@ -89,11 +90,25 @@ def generate_entity_graph(username, platform="Twitter"):
     filename = f"{username}_entity_graph.html"
     output_path = os.path.join(output_dir, filename)
 
-    # ✅ Use remote CDN for Render compatibility
-    net.write_html(output_path, notebook=False, local=False, cdn_resources="remote")
+    # --- Try writing with new PyVis arg, fallback if unsupported ---
+    try:
+        net.write_html(output_path, notebook=False, local=False, cdn_resources="remote")
+    except TypeError:
+        net.write_html(output_path, notebook=False, local=False)
+        # Inject remote vis-network CDN manually
+        with open(output_path, "r", encoding="utf-8") as f:
+            html = f.read()
+        if "vis-network.min.js" not in html:
+            cdn = """
+            <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/standalone/umd/vis-network.min.js"></script>
+            <link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/styles/vis-network.min.css" rel="stylesheet">
+            """
+            html = html.replace("<head>", f"<head>{cdn}")
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(html)
 
     print(f"✅ Entity graph written to {output_path}")
 
-    # Return a usable MEDIA URL path
+    # Return usable MEDIA URL path
     media_url = getattr(settings, "MEDIA_URL", "/media/")
     return os.path.join(media_url.strip("/"), filename)
