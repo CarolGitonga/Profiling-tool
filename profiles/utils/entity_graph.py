@@ -109,6 +109,6 @@ def generate_entity_graph(username, platform="Twitter"):
 
     print(f"✅ Entity graph written to {output_path}")
 
-    # Return usable MEDIA URL path
+    # Return a usable MEDIA URL path
     media_url = getattr(settings, "MEDIA_URL", "/media/")
-    return os.path.join(media_url.strip("/"), filename)
+    return f"{media_url}{filename}"
