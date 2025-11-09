@@ -115,66 +115,89 @@ def scrape_twitter_task(self, username: str) -> dict:
 
 
 # ==========================================================
-# 🎵 TIKTOK TASK
+# 🎵 TIKTOK TASK (Refactored for Playwright fallback)
 # ==========================================================
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="tiktok")
 def scrape_tiktok_task(self, username: str) -> dict:
-    """Scrape TikTok profile via ScrapingBee and save to DB."""
-    try:
-        result = scrape_tiktok_profile(username)
-        if not result.get("success"):
-            raise Exception(result.get("reason") or "Unknown TikTok scrape error")
+    """
+    Scrape TikTok profile using ScrapingBee + Playwright fallback,
+    save to DB, and trigger behavioral analysis.
+    """
+    from profiles.utils.tiktok_scraper import scrape_tiktok_profile
 
-        profile, _ = Profile.objects.get_or_create(username=username, platform="TikTok")
-        profile.full_name = result.get("full_name", "")
-        profile.avatar_url = result.get("avatar_url")
-        profile.save()
+    try:
+        logger.info(f"🎵 Starting TikTok scrape task for {username}")
+        result = scrape_tiktok_profile(username)
+
+        # --- Handle failure gracefully
+        if not result.get("success"):
+            reason = result.get("reason") or result.get("error") or "Unknown error"
+            raise Exception(f"TikTok scrape failed for {username}: {reason}")
+
+        # --- Extract returned info safely
+        full_name = result.get("full_name", "")
+        bio = result.get("bio", "")
+        followers = result.get("followers", 0)
+        following = result.get("following", 0)
+        likes = result.get("likes", 0)
+        avatar = result.get("avatar") or result.get("avatar_url", "")
+        source = result.get("source", "unknown")
+
+        # --- Update or create Profile + SocialMediaAccount
+        profile, _ = Profile.objects.update_or_create(
+            username=username,
+            platform="TikTok",
+            defaults={
+                "full_name": full_name,
+                "avatar_url": avatar,
+                "posts_count": 0,
+            },
+        )
 
         SocialMediaAccount.objects.update_or_create(
             profile=profile,
             platform="TikTok",
             defaults={
-                "bio": result.get("bio", ""),
-                "followers": result.get("followers", 0),
-                "following": result.get("following", 0),
-                "posts_collected": len(result.get("posts", [])),
-                "is_private": result.get("is_private", False),
-                "external_url": result.get("external_url"),
+                "bio": bio,
+                "followers": followers,
+                "following": following,
+                "posts_collected": 0,
+                "is_private": False,
+                "external_url": "",
             },
         )
 
-        posts = result.get("posts", [])
-        for post in posts:
-            caption = post.get("caption", "")
-            likes = int(post.get("likes", 0))
-            comments = int(post.get("comments", 0))
-            timestamp = post.get("timestamp") or timezone.now()
-            sentiment = round(TextBlob(caption).sentiment.polarity, 2)
-
-            RawPost.objects.update_or_create(
-                profile=profile,
-                content=caption[:500],
-                platform="TikTok",
-                timestamp=timestamp,
-                defaults={
-                    "likes": likes,
-                    "comments": comments,
-                    "sentiment_score": sentiment,
-                },
-            )
-
+        # --- Behavioral record (no posts yet, but triggers analysis later)
         ensure_behavioral_record(profile)
         perform_behavioral_analysis.delay(profile.id)
-        logger.info(f"✅ TikTok behavioral analysis queued for {username}")
-        return {"success": True, "username": username, "platform": "TikTok"}
+
+        logger.info(
+            f"✅ TikTok scrape complete for {username} | Followers={followers}, Following={following}, Likes={likes}, Source={source}"
+        )
+
+        return {
+            "success": True,
+            "username": username,
+            "platform": "TikTok",
+            "followers": followers,
+            "following": following,
+            "likes": likes,
+            "source": source,
+        }
 
     except Exception as e:
-        logger.exception(f"TikTok scraping error for {username}")
+        logger.exception(f"❌ TikTok scraping error for {username}: {e}")
         try:
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
         except self.MaxRetriesExceededError:
             logger.error(f"Max retries exceeded for TikTok scrape: {username}")
-            return {"success": False, "username": username, "platform": "TikTok", "reason": str(e)}
+            return {
+                "success": False,
+                "username": username,
+                "platform": "TikTok",
+                "reason": str(e),
+            }
+
 
 
 # ==========================================================
