@@ -138,3 +138,25 @@ def scrape_tiktok_profile(username: str):
         "likes": likes,
         "bio": bio
     }
+# ============================================================
+# ❌ Unscrape TikTok Profile (Safe Delete Helper)
+# ============================================================
+from profiles.models import Profile, SocialMediaAccount, RawPost
+
+def unscrape_tiktok_profile(username: str) -> bool:
+    """
+    Delete all TikTok-related records (profile + social media account + raw posts).
+    Safe to call when re-scraping or cleaning up data.
+    """
+    try:
+        profile = Profile.objects.get(username=username, platform="TikTok")
+        SocialMediaAccount.objects.filter(profile=profile, platform="TikTok").delete()
+        RawPost.objects.filter(profile=profile, platform="TikTok").delete()
+        profile.delete()
+        return True
+    except Profile.DoesNotExist:
+        return False
+    except Exception as e:
+        import logging
+        logging.exception(f"❌ Error deleting TikTok profile {username}: {e}")
+        return False
