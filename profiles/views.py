@@ -274,6 +274,10 @@ def behavioral_dashboard(request, username, platform):
 
     # 🧠 Generate Entity Graph
     entity_graph_url = None
+    cluster_colors = [
+    "#007bff", "#28a745", "#17a2b8", "#ffc107",
+    "#dc3545", "#6f42c1", "#20c997"
+    ]
     cluster_summaries = []
     try:
         graph_path, cluster_summaries = generate_entity_graph(username, platform)
@@ -332,6 +336,7 @@ def behavioral_dashboard(request, username, platform):
         "timeline_html": post_timeline_html,
         "entity_graph_url": entity_graph_url,
         "cluster_summaries": cluster_summaries,
+        "cluster_colors": cluster_colors,
         "top_keywords": top_keywords,
         "wordcloud_image": wordcloud_image,
     }
