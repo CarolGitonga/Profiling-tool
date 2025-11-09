@@ -53,6 +53,8 @@ def _fetch_tiktok_html(client, username):
                         "render_js": "true",
                         "wait_browser": "networkidle",
                         "block_resources": "false",
+                        "stealth_proxy": "true",
+                         "premium_proxy": "true",
                         "country_code": random.choice(["us", "de", "fr"]),
                         "device": "desktop",
                     },
