@@ -5,8 +5,8 @@ import random
 import logging
 from datetime import datetime, timezone as dt_timezone
 from textblob import TextBlob
-from bs4 import BeautifulSoup
 from scrapingbee import ScrapingBeeClient
+from bs4 import BeautifulSoup
 from django.utils import timezone
 from django.conf import settings
 from profiles.models import Profile, SocialMediaAccount, RawPost
@@ -14,7 +14,7 @@ from profiles.models import Profile, SocialMediaAccount, RawPost
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 🧩 ScrapingBee client setup
+# 🔑 API Setup
 # ============================================================
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 
@@ -24,44 +24,78 @@ def _get_client():
         return None
     return ScrapingBeeClient(api_key=SCRAPINGBEE_API_KEY)
 
+# 🌍 Backup TikTok mirrors (sometimes load faster)
+TIKTOK_MIRRORS = [
+    "https://www.tiktok.com/@{}",
+    "https://m.tiktok.com/@{}",
+    "https://www.tiktok.com/embed/@{}",
+]
+
 
 # ============================================================
-# 🧩 TikTok Scraper
+# 🧩 Core Scraper Logic
+# ============================================================
+def _fetch_tiktok_html(client, username):
+    """Try fetching TikTok HTML using multi-region ScrapingBee and mirrors."""
+    REGIONS = ["us", "de", "fr", "gb", "ca"]
+    html = None
+    source_used = None
+
+    for mirror in TIKTOK_MIRRORS:
+        url = mirror.format(username)
+        for region in random.sample(REGIONS, len(REGIONS)):
+            try:
+                logger.info(f"🌐 Trying TikTok mirror={mirror} region={region} for {username} ...")
+
+                resp = client.get(
+                    url,
+                    params={
+                        "render_js": "true",
+                        "wait_browser": "networkidle",
+                        "block_resources": "true",
+                        "country_code": region,
+                        "device": "desktop",
+                    },
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/122.0.0.0 Safari/537.36"
+                        ),
+                        "Accept-Language": "en-US,en;q=0.9",
+                    },
+                )
+
+                if resp.status_code == 200 and "SIGI_STATE" in resp.text:
+                    html = resp.text
+                    source_used = f"{mirror} ({region})"
+                    logger.info(f"✅ TikTok HTML fetched successfully for {username} from {source_used}")
+                    return html, source_used
+                else:
+                    logger.warning(f"⚠️ {username}: HTTP {resp.status_code} or SIGI_STATE missing (region={region})")
+
+            except Exception as e:
+                logger.warning(f"❌ {username}: failed for region {region} -> {e}")
+                continue
+
+    logger.error(f"🚨 All TikTok mirrors and regions failed for {username}")
+    return None, None
+
+
+# ============================================================
+# 🧩 Main Scraper
 # ============================================================
 def scrape_tiktok_profile(username: str):
     """
-    Scrape TikTok user info + posts using ScrapingBee and save results to DB.
+    Scrape TikTok user info and recent posts using multi-region ScrapingBee fallback.
     """
     client = _get_client()
     if not client:
         return {"error": "Missing API key"}
 
-    tiktok_url = f"https://www.tiktok.com/@{username}"
-
-    params = {
-        "render_js": "true",
-        "wait_browser": "networkidle",
-        "block_resources": "true",
-        "country_code": random.choice(["us", "fr", "de"]),
-        "device": "desktop",
-    }
-
-    # --- Try ScrapingBee
-    logger.info(f"🕵️ Trying ScrapingBee for TikTok user {username} ...")
-    html = None
-    try:
-        resp = client.get(tiktok_url, params=params)
-        if resp.status_code == 200 and "SIGI_STATE" in resp.text:
-            html = resp.text
-            logger.info(f"✅ ScrapingBee succeeded for {username}")
-        else:
-            logger.warning(f"⚠️ ScrapingBee returned {resp.status_code} for {username}")
-    except Exception as e:
-        logger.error(f"❌ ScrapingBee request failed for {username}: {e}")
-
+    html, source_used = _fetch_tiktok_html(client, username)
     if not html:
-        logger.error(f"❌ Could not retrieve HTML for {username}")
-        return {"error": f"Failed to scrape {username}"}
+        return {"error": f"Failed to scrape TikTok for {username}"}
 
     # ============================================================
     # 🧩 Extract JSON payload
@@ -129,7 +163,7 @@ def scrape_tiktok_profile(username: str):
             })
 
         # ============================================================
-        # 🧩 Save to Database
+        # 💾 Save to Database
         # ============================================================
         profile, _ = Profile.objects.get_or_create(
             username=username,
@@ -149,7 +183,6 @@ def scrape_tiktok_profile(username: str):
         sm_account.verified = user.get("verified", False)
         sm_account.save()
 
-        # --- Save posts
         saved_count = 0
         for post in posts:
             if not RawPost.objects.filter(
@@ -172,13 +205,14 @@ def scrape_tiktok_profile(username: str):
         profile.save(update_fields=["posts_count"])
         sm_account.save(update_fields=["posts_collected"])
 
-        logger.info(f"💾 {username}: saved {saved_count}/{len(posts)} TikToks successfully.")
+        logger.info(f"💾 {username}: saved {saved_count}/{len(posts)} TikToks from {source_used}")
 
         # ============================================================
-        # 🧩 Return Summary
+        # 🧾 Return Summary
         # ============================================================
         return {
             "success": True,
+            "source": source_used,
             "username": username,
             "full_name": user.get("nickname", ""),
             "bio": user.get("signature", ""),
@@ -198,7 +232,7 @@ def scrape_tiktok_profile(username: str):
 
 
 # ============================================================
-# 🧩 Un-Scrape Function
+# 🧩 Clean-up
 # ============================================================
 def unscrape_tiktok_profile(username: str) -> bool:
     """Delete TikTok-related social media records."""
