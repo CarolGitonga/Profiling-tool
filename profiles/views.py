@@ -9,6 +9,7 @@ from django.db.models.functions import TruncMonth
 from collections import Counter
 from django.conf import settings
 import os
+from urllib.parse import urljoin
 
 from dateutil.parser import parse as parse_date
 from celery.result import AsyncResult
@@ -278,12 +279,20 @@ def behavioral_dashboard(request, username, platform):
         if graph_path:
             if graph_path.startswith("/media/"):
                 entity_graph_url = request.build_absolute_uri(graph_path)
-            elif os.path.exists(os.path.join(settings.MEDIA_ROOT, graph_path)):
+            else:
+                filename = os.path.basename(graph_path)
+                media_url = settings.MEDIA_URL if settings.MEDIA_URL else "/media/"
                 entity_graph_url = request.build_absolute_uri(
-                    os.path.join(settings.MEDIA_URL, os.path.basename(graph_path))
+                    urljoin(media_url, filename)
                 )
+        else:
+            print(f"⚠️ No entity graph generated for {username} on {platform}.")
+
+
     except Exception as e:
-        print(f"⚠️ Entity graph generation failed: {e}")
+        print(f"⚠️ Entity graph generation failed for {username}: {e}")
+        entity_graph_url = None
+        
         
 
 
