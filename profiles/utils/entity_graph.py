@@ -151,4 +151,4 @@ def generate_entity_graph(username, platform="Twitter"):
 
     # Return a usable MEDIA URL path
     media_url = getattr(settings, "MEDIA_URL", "/media/")
-    return f"{media_url}{filename}"
+    return f"{media_url}{filename}", cluster_summaries
