@@ -52,8 +52,8 @@ def _fetch_tiktok_html(client, username):
                     params={
                         "render_js": "true",
                         "wait_browser": "networkidle",
-                        "block_resources": "true",
-                        "country_code": region,
+                        "block_resources": "false",
+                        "country_code": random.choice(["us", "de", "fr"]),
                         "device": "desktop",
                     },
                     headers={
