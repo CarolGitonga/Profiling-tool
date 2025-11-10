@@ -157,9 +157,18 @@ def _to_int_safe(value: str) -> int:
 # 🧩 HTML Parser
 # ============================================================
 def parse_instagram_html(html: str) -> dict:
-    """Parse Instagram profile HTML using JSON-LD or OG tags."""
+    """
+    Parse Instagram profile HTML robustly using JSON-LD, OG tags,
+    or embedded JSON (window._sharedData / __additionalDataLoaded).
+    """
+    import json, re
+    from bs4 import BeautifulSoup
+
     soup = BeautifulSoup(html, "html.parser")
 
+    # -------------------------------
+    # 1️⃣ Try JSON-LD structured data
+    # -------------------------------
     json_data = None
     ld_script = soup.find("script", {"type": "application/ld+json"})
     if ld_script and ld_script.string:
@@ -176,6 +185,9 @@ def parse_instagram_html(html: str) -> dict:
         bio = json_data.get("description", "")
         avatar = json_data.get("image", "")
 
+    # -------------------------------
+    # 2️⃣ Try OpenGraph meta tags
+    # -------------------------------
     og_title = soup.find("meta", {"property": "og:title"})
     if og_title and og_title.get("content"):
         title = og_title["content"]
@@ -192,12 +204,76 @@ def parse_instagram_html(html: str) -> dict:
     if og_desc:
         desc = og_desc.get("content", "")
         bio = bio or (desc.split("–")[-1].strip() if "–" in desc else desc)
-        m = re.search(r"([\d,\.KMB]+)\s+Followers?,\s+([\d,\.KMB]+)\s+Following?,\s+([\d,\.KMB]+)\s+Posts?", desc)
+        m = re.search(
+            r"([\d,\.KMB]+)\s+Followers?,\s+([\d,\.KMB]+)\s+Following?,\s+([\d,\.KMB]+)\s+Posts?",
+            desc,
+        )
         if m:
             followers = _to_int_safe(m.group(1))
             following = _to_int_safe(m.group(2))
             posts = _to_int_safe(m.group(3))
 
+    # -------------------------------
+    # 3️⃣ Try window._sharedData JSON
+    # -------------------------------
+    shared_script = soup.find("script", string=re.compile("window._sharedData"))
+    if shared_script:
+        try:
+            json_text = re.search(
+                r"window\._sharedData\s*=\s*(\{.*\});", shared_script.string
+            ).group(1)
+            shared_data = json.loads(json_text)
+            user_data = (
+                shared_data.get("entry_data", {})
+                .get("ProfilePage", [{}])[0]
+                .get("graphql", {})
+                .get("user", {})
+            )
+            if user_data:
+                username = user_data.get("username", username)
+                full_name = user_data.get("full_name", full_name)
+                bio = user_data.get("biography", bio)
+                avatar = user_data.get("profile_pic_url_hd", avatar)
+                followers = user_data.get("edge_followed_by", {}).get("count", followers)
+                following = user_data.get("edge_follow", {}).get("count", following)
+                posts = user_data.get("edge_owner_to_timeline_media", {}).get(
+                    "count", posts
+                )
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to parse window._sharedData for @{username}: {e}")
+
+    # -------------------------------
+    # 4️⃣ Try window.__additionalDataLoaded (newer structure)
+    # -------------------------------
+    additional_script = soup.find("script", string=re.compile("__additionalDataLoaded"))
+    if additional_script:
+        try:
+            json_text = re.search(
+                r"__additionalDataLoaded\([^,]+,\s*(\{.*\})\);", additional_script.string
+            ).group(1)
+            data = json.loads(json_text)
+            user_data = (
+                data.get("graphql", {}).get("user", {})
+                or data.get("data", {}).get("user", {})
+            )
+            if user_data:
+                username = user_data.get("username", username)
+                full_name = user_data.get("full_name", full_name)
+                bio = user_data.get("biography", bio)
+                avatar = user_data.get("profile_pic_url_hd", avatar)
+                followers = user_data.get("edge_followed_by", {}).get("count", followers)
+                following = user_data.get("edge_follow", {}).get("count", following)
+                posts = user_data.get("edge_owner_to_timeline_media", {}).get(
+                    "count", posts
+                )
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Failed to parse __additionalDataLoaded JSON for @{username}: {e}"
+            )
+
+    # -------------------------------
+    # ✅ Final structured return
+    # -------------------------------
     return {
         "username": username,
         "full_name": full_name,
@@ -207,6 +283,7 @@ def parse_instagram_html(html: str) -> dict:
         "bio": bio,
         "avatar": avatar,
     }
+
 
 # ============================================================
 # 🚀 Public Function
