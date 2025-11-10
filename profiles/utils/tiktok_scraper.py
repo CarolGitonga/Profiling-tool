@@ -8,8 +8,11 @@ from textblob import TextBlob
 from scrapingbee import ScrapingBeeClient
 from django.conf import settings
 from profiles.models import Profile, SocialMediaAccount, RawPost
-from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
+
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/render/project/src/.playwright"
+from playwright.sync_api import sync_playwright
+
 
 logger = logging.getLogger(__name__)
 
