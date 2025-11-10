@@ -1,11 +1,43 @@
 # profiles/utils/instagram_scrapingbee_scraper.py
 
-import os, re, random, logging
+import os, sys, shutil, subprocess, logging, random, re
 from bs4 import BeautifulSoup
 from django.conf import settings
 from scrapingbee import ScrapingBeeClient
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# ✅ Ensure Playwright is installed & consistent
+# ============================================================
+PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_PATH
+
+# Detect correct python binary
+PY_EXEC = shutil.which("python") or shutil.which("python3") or sys.executable
+
+if not os.path.exists(os.path.join(PLAYWRIGHT_PATH, "chromium_headless_shell-1187")):
+    print("⚙️ Installing Playwright Chromium runtime (first-run fix)...")
+    try:
+        os.makedirs(PLAYWRIGHT_PATH, exist_ok=True)
+        subprocess.run(
+            [
+                PY_EXEC,
+                "-m",
+                "playwright",
+                "install",
+                "chromium",
+                "chromium-headless-shell",
+            ],
+            check=True,
+            env={**os.environ, "PLAYWRIGHT_BROWSERS_PATH": PLAYWRIGHT_PATH},
+        )
+        print(f"✅ Playwright browsers installed at {PLAYWRIGHT_PATH}")
+    except Exception as e:
+        print("❌ Auto-install failed:", e)
+else:
+    print(f"✅ Playwright already installed at {PLAYWRIGHT_PATH}")
+
 
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 
