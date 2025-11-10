@@ -10,7 +10,7 @@ from django.utils import timezone
 from profiles.models import BehavioralAnalysis, Profile, RawPost, SocialMediaAccount
 from profiles.utils.twitter_scrapingbee_scraper import scrape_twitter_profile
 from profiles.utils.tiktok_scraper import scrape_tiktok_profile
-from profiles.utils.instagram_scraper import scrape_instagram_profile
+# from profiles.utils.instagram_scraper import scrape_instagram_profile
 from profiles.utils.instagram_scrapingbee_scraper import scrape_instagram_posts_scrapingbee
 
 
