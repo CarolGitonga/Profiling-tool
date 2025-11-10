@@ -9,14 +9,40 @@ from scrapingbee import ScrapingBeeClient
 from django.conf import settings
 from profiles.models import Profile, SocialMediaAccount, RawPost
 from bs4 import BeautifulSoup
+import subprocess
 
+# Ensure Playwright browsers path
 PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/render/project/src/.playwright"
-os.makedirs(PLAYWRIGHT_PATH, exist_ok=True)
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_PATH
 from playwright.sync_api import sync_playwright
 
 
 logger = logging.getLogger(__name__)
+
+# Ensure Playwright browsers path
+PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_PATH
+
+# Auto-install Chromium if not found
+if not os.path.exists(os.path.join(PLAYWRIGHT_PATH, "chromium_headless_shell-1187")):
+    print("⚙️ Installing Playwright Chromium runtime (first-run fix)...")
+    try:
+        subprocess.run(
+            [
+                "python",
+                "-m",
+                "playwright",
+                "install",
+                "chromium",
+                "chromium-headless-shell",
+            ],
+            check=True,
+            env={"PLAYWRIGHT_BROWSERS_PATH": PLAYWRIGHT_PATH},
+        )
+        print("✅ Playwright browsers installed at", PLAYWRIGHT_PATH)
+    except Exception as e:
+        print("❌ Auto-install failed:", e)
+
 
 # ============================================================
 # 🔑 Config
