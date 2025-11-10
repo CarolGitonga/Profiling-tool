@@ -6,11 +6,11 @@ services:
     name: people-profiling-web
     env: python
 
-    buildCommand: >
-      pip install -r requirements.txt &&
-      mkdir -p /opt/render/project/src/.playwright &&
-      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright python -m playwright install chromium &&
-      python manage.py collectstatic --noinput &&
+    buildCommand: |
+      pip install -r requirements.txt 
+      mkdir -p /opt/render/project/src/.playwright 
+      PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright python -m playwright install chromium 
+      python manage.py collectstatic --noinput 
       python manage.py migrate
 
     startCommand: gunicorn people_profiling.wsgi:application --preload --workers=4 --threads=2 --timeout 120
@@ -66,8 +66,8 @@ services:
     env: python
     plan: starter
     buildCommand: |
-      pip install -r requirements.txt &&
-      mkdir -p /opt/render/project/src/.playwright &&
+      pip install -r requirements.txt 
+      mkdir -p /opt/render/project/src/.playwright 
       PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright python -m playwright install chromium
     startCommand: "celery -A people_profiling worker -l info -Q default,instagram,tiktok,twitter"
 
