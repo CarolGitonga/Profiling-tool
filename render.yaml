@@ -39,6 +39,8 @@ services:
       # Cloudinary
       - key: CLOUDINARY_URL
         sync: false # paste your Cloudinary URL manually
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/src/.playwright
 
     # ------------------------
     # Serve static + media files
@@ -87,6 +89,8 @@ services:
         value: "False"
       - key: CLOUDINARY_URL
         sync: false
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/src/.playwright
 
 # ------------------------
 # PostgreSQL Database
