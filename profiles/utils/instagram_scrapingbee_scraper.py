@@ -131,40 +131,59 @@ def _to_int_safe(s: str) -> int:
 
 def parse_instagram_html(html: str) -> dict:
     """
-    Parse Instagram profile page HTML using robust fallbacks.
-    Uses OpenGraph meta tags (og:title, og:description, og:image).
+    Parse Instagram profile HTML robustly using JSON-LD or OpenGraph tags.
     """
+    import json, re
+
     soup = BeautifulSoup(html, "html.parser")
 
-    title_tag = soup.find("meta", {"property": "og:title"})
-    desc_tag  = soup.find("meta", {"property": "og:description"})
-    image_tag = soup.find("meta", {"property": "og:image"})
+    # --- Try JSON-LD structured data ---
+    json_data = None
+    ld_script = soup.find("script", {"type": "application/ld+json"})
+    if ld_script and ld_script.string:
+        try:
+            json_data = json.loads(ld_script.string)
+        except Exception:
+            pass
 
-    full_name, username = "", ""
-    if title_tag and title_tag.get("content"):
-        title = title_tag["content"]  # e.g. "Neo Minganga (@neominganga) • Instagram photos and videos"
-        # name before "(@"
-        full_name = title.split("(@")[0].strip()
-        m = re.search(r"\(@([^)]+)\)", title)
-        if m:
-            username = m.group(1).strip()
-
+    full_name = ""
+    username = ""
     bio = ""
+    avatar = ""
     followers = following = posts = 0
-    if desc_tag and desc_tag.get("content"):
-        # e.g. "2,540 Followers, 321 Following, 85 Posts - See Instagram photos and videos from Neo ... – bio text"
-        d = desc_tag["content"]
-        m = re.search(r"([\d,\.KMB]+)\s+Followers?,\s+([\d,\.KMB]+)\s+Following?,\s+([\d,\.KMB]+)\s+Posts?", d, re.I)
-        if m:
-            followers = _to_int_safe(m.group(1))
-            following = _to_int_safe(m.group(2))
-            posts     = _to_int_safe(m.group(3))
-        # everything after an "–" (en dash) is often the bio
-        parts = d.split("–", 1)
-        if len(parts) > 1:
-            bio = parts[1].strip()
 
-    avatar = image_tag["content"] if image_tag and image_tag.get("content") else ""
+    if json_data:
+        full_name = json_data.get("name", "")
+        bio = json_data.get("description", "")
+        avatar = json_data.get("image", "")
+
+    # --- Fallback to OpenGraph metadata ---
+    if not full_name:
+        og_title = soup.find("meta", {"property": "og:title"})
+        if og_title and og_title.get("content"):
+            title = og_title["content"]
+            # Example: "Neo Minganga (@neominganga) • Instagram photos and videos"
+            full_name = title.split("(@")[0].strip()
+            m = re.search(r"\(@([^)]+)\)", title)
+            if m:
+                username = m.group(1).strip()
+
+    if not avatar:
+        og_img = soup.find("meta", {"property": "og:image"})
+        if og_img:
+            avatar = og_img.get("content", "")
+
+    if not bio:
+        og_desc = soup.find("meta", {"property": "og:description"})
+        if og_desc:
+            desc = og_desc.get("content", "")
+            bio = desc.split("–")[-1].strip() if "–" in desc else desc
+            # Extract numbers if available
+            m = re.search(r"([\d,\.KMB]+)\s+Followers?,\s+([\d,\.KMB]+)\s+Following?,\s+([\d,\.KMB]+)\s+Posts?", desc)
+            if m:
+                followers = _to_int_safe(m.group(1))
+                following = _to_int_safe(m.group(2))
+                posts = _to_int_safe(m.group(3))
 
     return {
         "username": username,
@@ -175,6 +194,7 @@ def parse_instagram_html(html: str) -> dict:
         "bio": bio,
         "avatar": avatar,
     }
+
 
 # --- public API used by views/tasks ---
 def scrape_instagram_profile(username: str) -> dict:
