@@ -1,6 +1,4 @@
-# profiles/utils/instagram_scrapingbee_scraper.py
-
-import os, sys, shutil, subprocess, logging, random, re
+import os, sys, shutil, subprocess, logging, random, re, json
 from bs4 import BeautifulSoup
 from django.conf import settings
 from scrapingbee import ScrapingBeeClient
@@ -13,9 +11,9 @@ logger = logging.getLogger(__name__)
 PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
 os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_PATH
 
-# Detect correct python binary
-PY_EXEC = shutil.which("python") or shutil.which("python3") or sys.executable
+PY_EXEC = shutil.which("python3") or shutil.which("python") or sys.executable
 
+# Auto-install Playwright (only if missing)
 if not os.path.exists(os.path.join(PLAYWRIGHT_PATH, "chromium_headless_shell-1187")):
     print("⚙️ Installing Playwright Chromium runtime (first-run fix)...")
     try:
@@ -38,7 +36,9 @@ if not os.path.exists(os.path.join(PLAYWRIGHT_PATH, "chromium_headless_shell-118
 else:
     print(f"✅ Playwright already installed at {PLAYWRIGHT_PATH}")
 
-
+# ============================================================
+# 🔑 ScrapingBee Setup
+# ============================================================
 SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
 
 def _get_client():
@@ -47,43 +47,21 @@ def _get_client():
         return None
     return ScrapingBeeClient(api_key=SCRAPINGBEE_API_KEY)
 
-# --- optional Playwright fallback (same idea as your TikTok scraper) ---
+# Try importing Playwright safely
 try:
     from playwright.sync_api import sync_playwright
-except Exception:
+except ImportError:
     sync_playwright = None
+    logger.warning("⚠️ Playwright not available — only ScrapingBee will be used.")
 
-def _fetch_with_playwright(username: str) -> str | None:
-    if not sync_playwright:
-        logger.warning("Playwright not available in this process.")
-        return None
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/126.0.0.0 Safari/537.36"),
-                viewport={"width": 1280, "height": 800}
-            )
-            page = context.new_page()
-            page.goto(f"https://www.instagram.com/{username}/", wait_until="networkidle", timeout=45000)
-            html = page.content()
-            browser.close()
-            logger.info(f"✅ Playwright fetched Instagram page for {username}")
-            return html
-    except Exception as e:
-        logger.exception(f"❌ Playwright failed for Instagram @{username}: {e}")
-        return None
-
+# ============================================================
+# 🌍 Fetch Instagram HTML
+# ============================================================
 def _fetch_instagram_html(username: str) -> tuple[str | None, str]:
-    """
-    Try ScrapingBee first (JS render), then fall back to Playwright.
-    Returns (html, source_label)
-    """
+    """Try ScrapingBee first, then fall back to Playwright."""
     client = _get_client()
     if client:
-        for region in random.sample(["us","gb","fr","de","ca"], 5):
+        for region in random.sample(["us", "gb", "fr", "de", "ca"], 5):
             try:
                 resp = client.get(
                     f"https://www.instagram.com/{username}/",
@@ -97,47 +75,91 @@ def _fetch_instagram_html(username: str) -> tuple[str | None, str]:
                         "device": "desktop",
                     },
                     headers={
-                        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                                       "Chrome/126.0.0.0 Safari/537.36"),
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/126.0.0.0 Safari/537.36"
+                        ),
                         "Accept-Language": "en-US,en;q=0.9",
                         "Referer": "https://www.instagram.com/",
                     },
                 )
                 if resp.status_code == 200 and ("og:title" in resp.text or "og:description" in resp.text):
-                    logger.info(f"✅ ScrapingBee (region={region}) worked for Instagram @{username}")
+                    logger.info(f"✅ ScrapingBee (region={region}) worked for @{username}")
                     return resp.text, f"ScrapingBee ({region})"
                 else:
                     logger.warning(f"⚠️ Instagram returned {resp.status_code} region={region} for @{username}")
             except Exception as e:
-                logger.warning(f"⚠️ ScrapingBee region {region} failed for Instagram @{username}: {e}")
+                logger.warning(f"⚠️ ScrapingBee region {region} failed for @{username}: {e}")
 
-    # fallback to Playwright
-    html = _fetch_with_playwright(username)
-    return (html, "Playwright (fallback)") if html else (None, "Failed")
+    # ======================================================
+    # 🧠 Playwright Fallback — dynamic rendering
+    # ======================================================
+    if not sync_playwright:
+        return None, "Playwright not available"
 
-def _to_int_safe(s: str) -> int:
-    s = s.strip().upper().replace(",", "")
     try:
-        if s.endswith("K"):
-            return int(float(s[:-1]) * 1_000)
-        if s.endswith("M"):
-            return int(float(s[:-1]) * 1_000_000)
-        if s.endswith("B"):
-            return int(float(s[:-1]) * 1_000_000_000)
-        return int(re.sub(r"[^\d]", "", s))
+        with sync_playwright() as p:
+            logger.info(f"🌐 Using Playwright fallback for Instagram @{username}")
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+            context = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/126.0.0.0 Safari/537.36"
+                )
+            )
+            page = context.new_page()
+            page.goto(f"https://www.instagram.com/{username}/", timeout=60000)
+
+            try:
+                page.wait_for_selector('meta[property="og:title"]', timeout=15000)
+            except Exception:
+                logger.warning("⏳ OG meta not found — trying fallback selectors...")
+                try:
+                    page.wait_for_selector('img[alt*=\"profile picture\"]', timeout=10000)
+                except Exception:
+                    pass
+
+            html = page.content()
+            browser.close()
+
+            if "og:title" in html or "og:description" in html:
+                logger.info(f"✅ Playwright successfully fetched Instagram page for @{username}")
+                return html, "Playwright (fallback)"
+            else:
+                logger.warning(f"⚠️ Playwright fetched but missing metadata for @{username}")
+                return html, "Playwright (empty)"
+    except Exception as e:
+        logger.error(f"❌ Playwright failed for @{username}: {e}")
+        return None, "Failed"
+
+# ============================================================
+# 🔢 Helper: Convert Instagram follower counts
+# ============================================================
+def _to_int_safe(value: str) -> int:
+    if not value:
+        return 0
+    try:
+        s = str(value).replace(",", "").strip().upper()
+        if "K" in s:
+            return int(float(s.replace("K", "")) * 1_000)
+        elif "M" in s:
+            return int(float(s.replace("M", "")) * 1_000_000)
+        elif "B" in s:
+            return int(float(s.replace("B", "")) * 1_000_000_000)
+        else:
+            return int(float(s))
     except Exception:
         return 0
 
+# ============================================================
+# 🧩 HTML Parser
+# ============================================================
 def parse_instagram_html(html: str) -> dict:
-    """
-    Parse Instagram profile HTML robustly using JSON-LD or OpenGraph tags.
-    """
-    import json, re
-
+    """Parse Instagram profile HTML using JSON-LD or OG tags."""
     soup = BeautifulSoup(html, "html.parser")
 
-    # --- Try JSON-LD structured data ---
     json_data = None
     ld_script = soup.find("script", {"type": "application/ld+json"})
     if ld_script and ld_script.string:
@@ -146,10 +168,7 @@ def parse_instagram_html(html: str) -> dict:
         except Exception:
             pass
 
-    full_name = ""
-    username = ""
-    bio = ""
-    avatar = ""
+    full_name = username = bio = avatar = ""
     followers = following = posts = 0
 
     if json_data:
@@ -157,33 +176,27 @@ def parse_instagram_html(html: str) -> dict:
         bio = json_data.get("description", "")
         avatar = json_data.get("image", "")
 
-    # --- Fallback to OpenGraph metadata ---
-    if not full_name:
-        og_title = soup.find("meta", {"property": "og:title"})
-        if og_title and og_title.get("content"):
-            title = og_title["content"]
-            # Example: "Neo Minganga (@neominganga) • Instagram photos and videos"
-            full_name = title.split("(@")[0].strip()
-            m = re.search(r"\(@([^)]+)\)", title)
-            if m:
-                username = m.group(1).strip()
+    og_title = soup.find("meta", {"property": "og:title"})
+    if og_title and og_title.get("content"):
+        title = og_title["content"]
+        full_name = full_name or title.split("(@")[0].strip()
+        m = re.search(r"\(@([^)]+)\)", title)
+        if m:
+            username = m.group(1).strip()
 
-    if not avatar:
-        og_img = soup.find("meta", {"property": "og:image"})
-        if og_img:
-            avatar = og_img.get("content", "")
+    og_img = soup.find("meta", {"property": "og:image"})
+    if og_img:
+        avatar = avatar or og_img.get("content", "")
 
-    if not bio:
-        og_desc = soup.find("meta", {"property": "og:description"})
-        if og_desc:
-            desc = og_desc.get("content", "")
-            bio = desc.split("–")[-1].strip() if "–" in desc else desc
-            # Extract numbers if available
-            m = re.search(r"([\d,\.KMB]+)\s+Followers?,\s+([\d,\.KMB]+)\s+Following?,\s+([\d,\.KMB]+)\s+Posts?", desc)
-            if m:
-                followers = _to_int_safe(m.group(1))
-                following = _to_int_safe(m.group(2))
-                posts = _to_int_safe(m.group(3))
+    og_desc = soup.find("meta", {"property": "og:description"})
+    if og_desc:
+        desc = og_desc.get("content", "")
+        bio = bio or (desc.split("–")[-1].strip() if "–" in desc else desc)
+        m = re.search(r"([\d,\.KMB]+)\s+Followers?,\s+([\d,\.KMB]+)\s+Following?,\s+([\d,\.KMB]+)\s+Posts?", desc)
+        if m:
+            followers = _to_int_safe(m.group(1))
+            following = _to_int_safe(m.group(2))
+            posts = _to_int_safe(m.group(3))
 
     return {
         "username": username,
@@ -195,16 +208,12 @@ def parse_instagram_html(html: str) -> dict:
         "avatar": avatar,
     }
 
-
-# --- public API used by views/tasks ---
+# ============================================================
+# 🚀 Public Function
+# ============================================================
 def scrape_instagram_profile(username: str) -> dict:
-    """
-    Fetch and parse profile info only (no posts here),
-    return structured dict. You can persist in tasks.py.
-    """
     html, source = _fetch_instagram_html(username)
     if not html:
         return {"success": False, "error": f"Failed to fetch HTML: {source}"}
-
     parsed = parse_instagram_html(html)
     return {"success": True, "source": source, **parsed}
