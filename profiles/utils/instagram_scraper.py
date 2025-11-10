@@ -8,7 +8,7 @@ from textblob import TextBlob
 from profiles.models import Profile, RawPost, SocialMediaAccount
 
 # ✅ Import your ScrapingBee fallback
-from profiles.utils.instagram_scrapingbee_scraper import scrape_instagram_posts_scrapingbee
+# from profiles.utils.instagram_scrapingbee_scraper import scrape_instagram_posts_scrapingbee
 
 logger = logging.getLogger(__name__)
 
@@ -109,50 +109,13 @@ def scrape_instagram_profile(username: str, max_posts: int = 10) -> dict | None:
             "source": "instaloader",
         }
 
-    except instaloader.exceptions.ConnectionException as e:
-        msg = str(e).lower()
-        if "please wait" in msg or "401" in msg or "403" in msg or "rate" in msg:
-            logger.warning(f"🚨 Instaloader blocked or rate-limited for {username}. Using ScrapingBee fallback.")
-            return scrape_instagram_fallback(username, max_posts)
-        logger.exception(f"Instaloader connection error for {username}: {e}")
-        return None
+    
 
     except instaloader.exceptions.ProfileNotExistsException:
         logger.warning(f"Instagram profile '{username}' not found.")
         return None
 
-    except Exception as e:
-        logger.exception(f"Error scraping Instagram for {username}: {e}")
-        # Auto-fallback if anything else unexpected happens
-        return scrape_instagram_fallback(username, max_posts)
 
-
-# =========================================================
-#  Fallback Handler
-# =========================================================
-def scrape_instagram_fallback(username: str, max_posts: int = 10) -> dict:
-    """
-    Use ScrapingBee to fetch Instagram posts when Instaloader fails.
-    Returns the same structure for consistency.
-    """
-    try:
-        posts = scrape_instagram_posts_scrapingbee(username, max_posts=max_posts)
-        logger.info(f"🐝 Fallback ScrapingBee fetched {len(posts)} posts for {username}")
-
-        return {
-            "full_name": username,   # Minimal info
-            "bio": "",
-            "followers": 0,
-            "following": 0,
-            "posts": posts or [],
-            "is_verified": False,
-            "external_url": None,
-            "profile_pic_url": None,
-            "source": "scrapingbee",
-        }
-    except Exception as e:
-        logger.exception(f"❌ ScrapingBee fallback also failed for {username}: {e}")
-        return {"error": str(e), "posts": [], "source": "error"}
 
 
 # =========================================================
