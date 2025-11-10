@@ -10,26 +10,26 @@ from django.conf import settings
 from profiles.models import Profile, SocialMediaAccount, RawPost
 from bs4 import BeautifulSoup
 import subprocess
-
-# Ensure Playwright browsers path
-PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_PATH
 from playwright.sync_api import sync_playwright
 
-
 logger = logging.getLogger(__name__)
+import shutil
+import sys
 
-# Ensure Playwright browsers path
+# Ensure consistent Playwright path
 PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
 os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_PATH
 
-# Auto-install Chromium if not found
+# Detect correct python binary
+PY_EXEC = shutil.which("python") or shutil.which("python3") or sys.executable
+
 if not os.path.exists(os.path.join(PLAYWRIGHT_PATH, "chromium_headless_shell-1187")):
     print("⚙️ Installing Playwright Chromium runtime (first-run fix)...")
     try:
+        os.makedirs(PLAYWRIGHT_PATH, exist_ok=True)
         subprocess.run(
             [
-                "python",
+                PY_EXEC,
                 "-m",
                 "playwright",
                 "install",
@@ -37,11 +37,14 @@ if not os.path.exists(os.path.join(PLAYWRIGHT_PATH, "chromium_headless_shell-118
                 "chromium-headless-shell",
             ],
             check=True,
-            env={"PLAYWRIGHT_BROWSERS_PATH": PLAYWRIGHT_PATH},
+            env={**os.environ, "PLAYWRIGHT_BROWSERS_PATH": PLAYWRIGHT_PATH},
         )
-        print("✅ Playwright browsers installed at", PLAYWRIGHT_PATH)
+        print(f"✅ Playwright browsers installed at {PLAYWRIGHT_PATH}")
     except Exception as e:
         print("❌ Auto-install failed:", e)
+else:
+    print(f"✅ Playwright already installed at {PLAYWRIGHT_PATH}")
+
 
 
 # ============================================================
