@@ -10,7 +10,9 @@ from django.conf import settings
 from profiles.models import Profile, SocialMediaAccount, RawPost
 from bs4 import BeautifulSoup
 
+PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
 os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/render/project/src/.playwright"
+os.makedirs(PLAYWRIGHT_PATH, exist_ok=True)
 from playwright.sync_api import sync_playwright
 
 
