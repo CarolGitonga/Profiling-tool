@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 #  Session Loader
 # =========================================================
 def get_instaloader() -> instaloader.Instaloader:
-    """Initialize Instaloader with session from file or environment."""
+    """Initialize Instaloader with session from local file or environment (Render)."""
+    import base64, tempfile, os
+
     L = instaloader.Instaloader(
         download_videos=False,
         download_comments=False,
@@ -27,8 +29,9 @@ def get_instaloader() -> instaloader.Instaloader:
     )
 
     session_loaded = False
+
     try:
-        # 1️⃣ Load local session
+        # 1️⃣ Load local session (works in local dev)
         if hasattr(settings, "SESSION_FILE") and os.path.exists(settings.SESSION_FILE):
             L.load_session_from_file(settings.IG_LOGIN, filename=settings.SESSION_FILE)
             logger.info("💻 Loaded local Instagram session file.")
@@ -36,21 +39,34 @@ def get_instaloader() -> instaloader.Instaloader:
 
         # 2️⃣ Load from environment (Render)
         elif os.getenv("INSTAGRAM_SESSION_DATA"):
-            session_data = os.getenv("INSTAGRAM_SESSION_DATA")
-            tmpfile = tempfile.NamedTemporaryFile(delete=False)
-            tmpfile.write(session_data.encode())
-            tmpfile.close()
-            L.load_session_from_file("iamcarolgitonga", filename=tmpfile.name)
-            logger.info("🔐 Loaded Instagram session from environment.")
-            session_loaded = True
+            session_b64 = os.getenv("INSTAGRAM_SESSION_DATA")
+            try:
+                # Decode base64 text into original binary
+                session_bytes = base64.b64decode(session_b64)
 
+                # Write to a temporary binary file (Render-safe)
+                tmpfile = tempfile.NamedTemporaryFile(delete=False)
+                tmpfile.write(session_bytes)
+                tmpfile.close()
+
+                # Load decoded session
+                L.load_session_from_file(settings.IG_LOGIN, filename=tmpfile.name)
+                logger.info("🔐 Loaded Instagram session from environment.")
+                session_loaded = True
+
+            except Exception as e:
+                logger.exception(f"❌ Failed to decode or load Instagram session from env: {e}")
+
+        # 3️⃣ No session found
         if not session_loaded:
             logger.warning("⚠️ No Instagram session found. Anonymous scraping may be limited.")
 
     except Exception as e:
-        logger.exception(f"❌ Failed to load Instagram session: {e}")
+        logger.exception(f"❌ Failed to initialize Instaloader: {e}")
 
     return L
+
+
 
 
 # =========================================================
