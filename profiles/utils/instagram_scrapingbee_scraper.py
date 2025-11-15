@@ -1,4 +1,4 @@
-import os, sys, shutil, subprocess, logging, random, re, json
+import os, sys, shutil, subprocess, logging, random, re, json, base64
 from bs4 import BeautifulSoup
 from django.conf import settings
 from scrapingbee import ScrapingBeeClient
@@ -97,11 +97,6 @@ def _fetch_instagram_html(username: str) -> tuple[str | None, str]:
     # ======================================================
     if not sync_playwright:
         return None, "Playwright not available"
-    IG_USER = os.getenv("IG_LOGIN")
-    IG_PASS = os.getenv("INSTAGRAM_PASSWORD")
-    if not IG_USER or not IG_PASS:
-        logger.error("❌ Missing IG_LOGIN or INSTAGRAM_PASSWORD in environment.")
-        return None, "Missing credentials"
     try:
         with sync_playwright() as p:
             logger.info(f"🌐 Using Playwright fallback for Instagram @{username}")
@@ -113,22 +108,22 @@ def _fetch_instagram_html(username: str) -> tuple[str | None, str]:
                     "Chrome/126.0.0.0 Safari/537.36"
                 )
             )
+            # Load Instagram cookies into Playwright
+            cookies_b64 = os.getenv("IG_COOKIES_B64")
+            if cookies_b64:
+                try:
+                    cookies_raw = base64.b64decode(cookies_b64).decode()
+                    cookies = json.loads(cookies_raw)
+                    context.add_cookies(cookies)
+                    logger.info("🍪 Loaded Instagram cookies for Playwright")
+                except Exception as e:
+                    logger.error(f"❌ Failed to load cookies: {e}")
             page = context.new_page()
-            page.goto("https://www.instagram.com/accounts/login/", timeout=60000)
-            page.wait_for_timeout(5000)
-            page.fill('input[name="username"]', IG_USER)
-            page.fill('input[name="password"]', IG_PASS)
-            page.click('button[type="submit"]')
-
-            try:
-                page.wait_for_selector('svg[aria-label="Home"]', timeout=20000)
-                logger.info("✅ Instagram login successful.")
-            except Exception:
-                logger.warning("⚠️ Login confirmation not found — continuing anyway.")
             # --- Navigate to profile ---
             profile_url = f"https://www.instagram.com/{username}/"
             page.goto(profile_url, timeout=60000)
-            page.wait_for_timeout(5000)
+
+            page.wait_for_timeout(6000)
             try:
                 page.wait_for_selector('meta[property="og:title"]', timeout=15000)
             except Exception:
