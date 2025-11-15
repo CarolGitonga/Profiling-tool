@@ -51,6 +51,8 @@ class SocialMediaAccount(models.Model):
     # Instagram-specific (optional)
     is_private = models.BooleanField(default=False)
     external_url = models.URLField(blank=True, null=True)
+    source = models.CharField(max_length=50, blank=True, null=True)
+
 
      # ✅ TikTok-specific
     hearts = models.IntegerField(default=0)
