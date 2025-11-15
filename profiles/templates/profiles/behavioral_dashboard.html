@@ -2,58 +2,94 @@
 {% block title %}Behavioral Dashboard – {{ profile.username }}{% endblock %}
 
 {% block content %}
+
 <style>
+  /* --- General Styling --- */
   .metric-card {
     border-radius: 14px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    padding: 1.25rem;
+    padding: 1.2rem;
     text-align: center;
     min-height: 120px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    transition: transform .15s ease-in-out;
   }
-  .metric-value { font-size: 1.6rem; font-weight: 700; }
+  .metric-card:hover {
+    transform: translateY(-3px);
+  }
+  .metric-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
   .chart-wrap {
     background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
     padding: 1rem;
-    min-height: 220px;
-  }
-  .chart-wrap img {
-    transition: transform 0.2s ease-in-out;
-  }
-  .chart-wrap img:hover {
-    transform: scale(1.03);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    margin-bottom: 1.5rem;
   }
   .keyword-badge {
-    margin: .25rem;
-    border-radius: 12px;
-    font-size: .85rem;
+    margin: 0.25rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+  .platform-tab {
+    padding: 0.5rem 1rem;
+    margin-right: .6rem;
+    border-radius: 10px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .platform-tab.active {
+    background-color: #22267c;
+    color: #fff;
+  }
+  .platform-tab:hover {
+    background-color: #e9ecff;
   }
 </style>
 
 <div class="container py-4">
-  <a href="{% url 'profile_dashboard' profile.pk %}" class="btn btn-outline-secondary mb-3">
+
+  <!-- BACK BUTTON -->
+  <a href="{% url 'profile_dashboard' profile.pk %}"
+     class="btn btn-outline-secondary mb-3">
     ← Back to {{ profile.username }}’s Dashboard
   </a>
 
-  <!-- Header -->
+  <!-- HEADER -->
   <div class="text-center mb-4">
-    <img src="{{ profile.avatar_url|default:'#' }}" class="rounded-circle shadow-sm mb-3"
-         width="110" height="110" alt="{{ profile.username }} avatar">
-    <h3 class="fw-bold mb-0">{{ profile.username }}</h3>
+    <img src="{{ profile.avatar_url|default:'#' }}"
+         class="rounded-circle shadow-sm mb-3"
+         width="110" height="110">
+
+    <h3 class="fw-bold">{{ profile.username }}</h3>
     {% if profile.full_name %}
       <div class="text-muted">{{ profile.full_name }}</div>
     {% endif %}
-    <span class="badge bg-primary mt-2">{{ profile.platform }}</span>
+
+    <!-- platform badge -->
+    <span class="badge bg-primary mt-2">{{ platform }}</span>
   </div>
 
-  <!-- Summary Metrics -->
+  <!-- PLATFORM SWITCHER (Twitter / IG / TikTok / GitHub) -->
+  <div class="d-flex justify-content-center mb-4">
+    {% for p in "Twitter Instagram TikTok GitHub".split %}
+      <a href="{% url 'behavioral_dashboard' profile.username p %}"
+         class="platform-tab {% if p == platform %}active{% endif %}">
+        {{ p }}
+      </a>
+    {% endfor %}
+  </div>
+
+  <!-- SUMMARY METRICS -->
   <div class="row g-3 mb-4">
+
     <div class="col-6 col-md-3">
-      <div class="metric-card text-white" style="background-color: #22267c;">
+      <div class="metric-card text-white" style="background:#22267c;">
         <div>Network Size</div>
-        <div class="metric-value">{{ network_size|default:"0" }}</div>
-        <small>Followers: {{ followers|default:"0" }} • Following: {{ following|default:"0" }}</small>
+        <div class="metric-value">{{ network_size }}</div>
+        <small>Followers {{ followers }} • Following {{ following }}</small>
       </div>
     </div>
 
@@ -61,17 +97,17 @@
       <div class="metric-card bg-success text-white">
         <div>Avg Sentiment</div>
         <div class="metric-value">
-          {% if analysis and analysis.sentiment_score is not None %}
+          {% if analysis and analysis.sentiment_score %}
             {{ analysis.sentiment_score|floatformat:2 }}
           {% else %}N/A{% endif %}
         </div>
-        <small>-1 = Negative • +1 = Positive</small>
+        <small>-1 neg • +1 pos</small>
       </div>
     </div>
 
     <div class="col-6 col-md-3">
       <div class="metric-card bg-warning text-dark">
-        <div>Activity</div>
+        <div>Activity Window</div>
         <div class="metric-value">
           {% if analysis and analysis.avg_post_time %}
             {{ analysis.avg_post_time }}
@@ -79,7 +115,7 @@
         </div>
         <small>
           {% if analysis and analysis.most_active_days %}
-            Active on {{ analysis.most_active_days|join:", " }}
+            {{ analysis.most_active_days|join:", " }}
           {% else %}No data{% endif %}
         </small>
       </div>
@@ -88,130 +124,113 @@
     <div class="col-6 col-md-3">
       <div class="metric-card bg-info text-white">
         <div>Influence Score</div>
-        <div class="metric-value">{{ influence_score|default:"N/A" }}</div>
-        <small>Estimated reach</small>
+        <div class="metric-value">{{ influence_score }}</div>
+        <small>Relative Reach</small>
       </div>
     </div>
   </div>
 
-  <!-- 🧩 Sentiment Distribution -->
+  <!-- SENTIMENT DISTRIBUTION -->
   <div class="chart-wrap mb-4">
-    <h6 class="text-secondary fw-bold mb-3">Sentiment Distribution</h6>
+    <h6 class="text-secondary fw-bold">Sentiment Distribution</h6>
     <canvas id="sentimentPie"></canvas>
   </div>
 
-  <!-- 🧩 Activity Heatmap -->
+  <!-- ACTIVITY HEATMAP -->
   <div class="chart-wrap mb-4">
-    <h6 class="text-secondary fw-bold mb-3">Activity Heatmap (Weekday × Hour)</h6>
+    <h6 class="text-secondary fw-bold">Activity Heatmap</h6>
     {% if activity_heatmap_image %}
-      <img src="data:image/png;base64,{{ activity_heatmap_image }}" 
-           alt="Activity Heatmap"
-           class="img-fluid rounded shadow-sm"
-           style="width: 100%; max-height: 400px; object-fit: contain;">
+      <img src="data:image/png;base64,{{ activity_heatmap_image }}"
+           class="img-fluid rounded shadow-sm">
     {% else %}
-      <p class="text-muted mb-0">No activity data available yet.</p>
+      <p class="text-muted">No activity data available.</p>
     {% endif %}
   </div>
 
-  <!-- 🧩 Posting Timeline -->
+  <!-- POSTING FREQUENCY -->
   <div class="chart-wrap mb-4">
-    <h6 class="text-secondary fw-bold mb-3">Posting Frequency Over Time</h6>
+    <h6 class="text-secondary fw-bold">Posting Frequency Over Time</h6>
     {% if timeline_html %}
       {{ timeline_html|safe }}
     {% else %}
-      <p class="text-muted mb-0">No posting data available yet.</p>
+      <p class="text-muted">No posting data available.</p>
     {% endif %}
   </div>
-<!-- 🧩 Entity Co-occurrence Graph -->
-<div class="chart-wrap mt-4">
-  <h6 class="text-secondary fw-bold mb-3">Entity Co-occurrence Graph</h6>
 
-  {% if entity_graph_url %}
-    <!-- Interactive Entity Graph -->
-    <iframe 
-      src="{{ entity_graph_url }}" 
-      width="100%" 
-      height="600"
-      loading="lazy"
-      style="border: none; border-radius: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);">
-    </iframe>
+  <!-- ENTITY GRAPH -->
+  <div class="chart-wrap mb-4">
+    <h6 class="text-secondary fw-bold">Entity Co-occurrence Graph</h6>
 
-    <!-- 🧠 Cluster Summaries -->
-    {% if cluster_summaries %}
-      <div class="mt-3 p-3 bg-light rounded shadow-sm">
-        <h6 class="fw-bold text-secondary mb-2">Detected Clusters</h6>
-        <ul class="list-unstyled mb-0">
-          {% for cluster in cluster_summaries %}
-            <li class="mb-1">
-              <span class="badge rounded-circle me-2" 
-                    style="width: 12px; height: 12px; display: inline-block;
-                           background-color: {{ cluster_colors|default:'#007bff'|safe }};">
-              </span>
-              {{ cluster }}
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
+    {% if entity_graph_url %}
+      <iframe src="{{ entity_graph_url }}" width="100%" height="600"
+              style="border:none; border-radius:12px;"></iframe>
+
+      {% if cluster_summaries %}
+        <div class="mt-3 p-3 bg-light rounded">
+          <h6 class="fw-bold text-secondary">Detected Clusters</h6>
+          <ul class="list-unstyled">
+            {% for cluster in cluster_summaries %}
+              <li>
+                <span class="badge rounded-circle me-2"
+                      style="width:12px; height:12px; background-color:{{ cluster_colors.forloop.counter0 }};">
+                </span>
+                {{ cluster }}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
     {% else %}
-      <p class="text-muted mt-2 mb-0">No clusters detected or data insufficient.</p>
+      <p class="text-muted">No entity graph available.</p>
     {% endif %}
-  {% else %}
-    <p class="text-muted mb-0">Entity graph not yet generated or no entities found.</p>
-  {% endif %}
-</div>
+  </div>
 
-
-
-
-  <!-- 🧩 Keywords / Word Cloud -->
+  <!-- KEYWORDS + WORDCLOUD -->
   <div class="row g-4">
     <div class="col-md-6">
       <div class="chart-wrap">
-        <h6 class="text-secondary fw-bold mb-3">Top Keywords & Hashtags</h6>
+        <h6 class="text-secondary fw-bold">Top Keywords & Hashtags</h6>
         {% if top_keywords %}
           <div class="d-flex flex-wrap">
             {% for k, v in top_keywords.items %}
-              <span class="badge bg-dark keyword-badge">#{{ k }} ({{ v }})</span>
+              <span class="badge bg-dark keyword-badge">{{ k }} ({{ v }})</span>
             {% endfor %}
           </div>
         {% else %}
-          <p class="text-muted mb-0">No keywords identified yet.</p>
+          <p class="text-muted">No keywords extracted.</p>
         {% endif %}
       </div>
     </div>
 
     <div class="col-md-6">
-      <div class="chart-wrap h-100 d-flex flex-column justify-content-between">
-        <h6 class="text-secondary fw-bold mb-3">Word Cloud</h6>
-        <div class="d-flex justify-content-center align-items-center flex-grow-1">
-          {% if wordcloud_image %}
-            <img src="data:image/png;base64,{{ wordcloud_image }}" 
-                 alt="Word Cloud" 
-                 class="img-fluid rounded shadow-sm"
-                 style="width: 90%; max-height: 220px; object-fit: contain; background: #fff; padding: .75rem; border-radius: 14px;">
-          {% else %}
-            <p class="text-muted mb-0">Word cloud not generated yet.</p>
-          {% endif %}
-        </div>
+      <div class="chart-wrap">
+        <h6 class="text-secondary fw-bold">Word Cloud</h6>
+        {% if wordcloud_image %}
+          <img src="data:image/png;base64,{{ wordcloud_image }}"
+               class="img-fluid rounded shadow-sm">
+        {% else %}
+          <p class="text-muted">Word cloud not available.</p>
+        {% endif %}
       </div>
     </div>
   </div>
 </div>
 
-<!-- Chart.js only used for sentiment pie -->
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   const sentimentData = {{ sentiment_pie|default:"[0,0,0]"|safe }};
-  new Chart(document.getElementById('sentimentPie'), {
-    type: 'doughnut',
+  new Chart(document.getElementById("sentimentPie"), {
+    type: "doughnut",
     data: {
-      labels: ['Positive', 'Neutral', 'Negative'],
+      labels: ["Positive", "Neutral", "Negative"],
       datasets: [{
         data: sentimentData,
-        backgroundColor: ['#28a745', '#ffc107', '#dc3545']
+        backgroundColor: ["#28a745", "#ffc107", "#dc3545"]
       }]
     },
-    options: { plugins: { legend: { position: 'bottom' } } }
+    options: { plugins: { legend: { position: "bottom" } } }
   });
 </script>
+
 {% endblock %}
