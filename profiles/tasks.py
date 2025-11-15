@@ -205,17 +205,23 @@ def scrape_tiktok_task(self, username: str) -> dict:
 # ==========================================================
 @shared_task(bind=True, max_retries=5, default_retry_delay=60, queue="instagram")
 def scrape_instagram_task(self, username: str) -> dict:
-    """Scrape Instagram profile via scraping utility and save to DB."""
+    """Scrape Instagram profile via Playwright/ScrapingBee and save to DB."""
     try:
         data = scrape_instagram_profile(username)
-        if not data or (isinstance(data, dict) and "error" in data):
+
+        if not data or (isinstance(data, dict) and data.get("success") is False):
             reason = data.get("error") if isinstance(data, dict) else "No data"
+
             logger.warning(f"Permanent failure scraping {username}: {reason}")
+
             with transaction.atomic():
-                profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
+                profile, _ = Profile.objects.get_or_create(
+                    username=username, platform="Instagram"
+                )
                 profile.full_name = ""
                 profile.avatar_url = None
                 profile.save()
+
                 SocialMediaAccount.objects.update_or_create(
                     profile=profile,
                     platform="Instagram",
@@ -226,42 +232,80 @@ def scrape_instagram_task(self, username: str) -> dict:
                         "posts_collected": 0,
                         "is_private": True,
                         "external_url": None,
+                        "source": "error",
                     },
                 )
-            return {"success": False, "username": username, "platform": "Instagram", "reason": reason}
 
-        # Valid scrape
+            return {
+                "success": False,
+                "username": username,
+                "platform": "Instagram",
+                "reason": reason,
+            }
+
+        # Extract data
+        full_name = data.get("full_name", "")
+        avatar = data.get("avatar")  # FIXED
+        bio = data.get("bio", "")
+        followers = data.get("followers", 0)
+        following = data.get("following", 0)
+        posts = data.get("posts", 0)   # FIXED
+        external_url = data.get("external_url")
+        source = data.get("source", "unknown")
+
+        # Private detection heuristic
+        is_private = (
+            "This Account is Private".lower() in bio.lower()
+            or "private" in bio.lower()
+        )
+
+        # Save to DB
         with transaction.atomic():
-            profile, _ = Profile.objects.get_or_create(username=username, platform="Instagram")
-            profile.full_name = data.get("full_name", "")
-            profile.avatar_url = data.get("profile_pic_url")
+            profile, _ = Profile.objects.get_or_create(
+                username=username, platform="Instagram"
+            )
+            profile.full_name = full_name
+            profile.avatar_url = avatar
             profile.save()
 
             SocialMediaAccount.objects.update_or_create(
                 profile=profile,
                 platform="Instagram",
                 defaults={
-                    "bio": data.get("bio", ""),
-                    "followers": data.get("followers", 0),
-                    "following": data.get("following", 0),
-                    "posts_collected": len(data.get("posts", [])),
-                    "is_private": data.get("is_private", False),
-                    "external_url": data.get("external_url"),
+                    "bio": bio,
+                    "followers": followers,
+                    "following": following,
+                    "posts_collected": posts,
+                    "is_private": is_private,
+                    "external_url": external_url,
+                    "source": source,  # NEW
                 },
             )
 
         ensure_behavioral_record(profile)
         perform_behavioral_analysis.delay(profile.id)
         logger.info(f"✅ Behavioral record ensured for {username} (Instagram)")
-        return {"success": True, "username": username, "platform": "Instagram"}
+
+        return {
+            "success": True,
+            "username": username,
+            "platform": "Instagram",
+            "data": data,  # NEW
+        }
 
     except Exception as e:
         err_msg = str(e)
         logger.exception(f"Instagram scraping failed for {username}: {err_msg}")
+
         if any(x in err_msg for x in ["Please wait", "401", "429", "temporarily unavailable"]):
-            wait_time = 120
-            raise self.retry(exc=e, countdown=wait_time)
-        return {"success": False, "username": username, "platform": "Instagram", "reason": err_msg}
+            raise self.retry(exc=e, countdown=120)
+
+        return {
+            "success": False,
+            "username": username,
+            "platform": "Instagram",
+            "reason": err_msg,
+        }
 
 
 # ==========================================================
