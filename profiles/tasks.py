@@ -318,7 +318,8 @@ def perform_behavioral_analysis(self, profile_id):
     try:
         profile = Profile.objects.get(id=profile_id)
         analysis, _ = BehavioralAnalysis.objects.get_or_create(profile=profile)
-        sm = SocialMediaAccount.objects.filter(profile=profile, platform=profile.platform).first()
+        # m = SocialMediaAccount.objects.filter(profile=profile, platform=profile.platform).first()
+        accounts = SocialMediaAccount.objects.filter(profile=profile)
         posts_qs = RawPost.objects.filter(profile=profile).only("timestamp", "content")
 
         # ----------------- Helpers -----------------
@@ -384,8 +385,8 @@ def perform_behavioral_analysis(self, profile_id):
         avg_post_time, most_active_days = compute_posting_patterns(posts_df)
         keyword_freq = extract_keywords(" ".join(captions))
 
-        followers = int(getattr(sm, "followers", 0) or 0) if sm else 0
-        following = int(getattr(sm, "following", 0) or 0) if sm else 0
+        followers = sum(int(a.followers or 0) for a in accounts)
+        following = sum(int(a.following or 0) for a in accounts)
         network_size = followers + following
 
         # ----------------- Persist -----------------

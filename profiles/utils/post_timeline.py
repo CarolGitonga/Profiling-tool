@@ -3,15 +3,20 @@ import plotly.express as px
 from django.utils import timezone
 from profiles.models import RawPost
 
-def generate_post_timeline(username: str, platform: str = "Twitter"):
+def generate_post_timeline(username: str, platforms=None):
     """
     Generate a Plotly timeline showing posting frequency and average sentiment over time.
     Returns an HTML <div> string that can be embedded directly into Django templates.
     """
+    # Normalize platforms input
+    if platforms is None:
+        platforms = ["Twitter"]
+    elif isinstance(platforms, str):
+        platforms = [platforms]
     # --- 1️⃣ Fetch data ---
     posts = RawPost.objects.filter(
         profile__username=username, 
-        profile__platform=platform
+        profile__platform=platforms
     ).exclude(timestamp=None).order_by("timestamp")
 
     if not posts.exists():
@@ -22,7 +27,8 @@ def generate_post_timeline(username: str, platform: str = "Twitter"):
         {
             "timestamp": p.timestamp,
             "sentiment": p.sentiment_score if p.sentiment_score is not None else 0.0,
-            "content": (p.content or "")[:100]
+            "content": (p.content or "")[:120],
+            "platform": p.platform,
         }
         for p in posts
     ]
@@ -40,9 +46,10 @@ def generate_post_timeline(username: str, platform: str = "Twitter"):
         grouped,
         x="date",
         y="posts",
-        color="avg_sentiment",
-        title=f"Posting Timeline for @{username} ({platform})",
-        labels={"date": "Date", "posts": "Number of Posts"},
+        color="platform",
+        hover_data=["avg_sentiment"],
+        title=f"Posting Timeline for @{username} ({', '.join(platforms)})",
+        labels={"date": "Date", "posts": "Number of Posts", "platform": "Platform",},
         color_continuous_scale="RdYlGn",  # Red (negative) → Yellow → Green (positive)
     )
 
