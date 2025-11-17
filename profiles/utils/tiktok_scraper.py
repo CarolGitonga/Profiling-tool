@@ -54,10 +54,20 @@ def _get_client():
 # Fetch TikTok HTML
 # ============================================================
 def _fetch_tiktok_html(username: str):
+    """
+    Try ScrapingBee first — if blocked, fallback to a hardened Playwright renderer.
+    Returns: (html, source)
+    """
     client = _get_client()
 
+    # ========================================
+    # 1️⃣ ScrapingBee Primary Attempt
+    # ========================================
     if client:
-        for region in ["us", "gb", "fr", "de", "ca", "ke"]:
+        regions = ["us", "gb", "fr", "de", "ca", "ke"]
+        random.shuffle(regions)
+
+        for region in regions:
             try:
                 resp = client.get(
                     f"https://www.tiktok.com/@{username}",
@@ -69,28 +79,93 @@ def _fetch_tiktok_html(username: str):
                         "device": "desktop",
                         "country_code": region,
                     },
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/122.0.0.0 Safari/537.36"
+                        ),
+                        "Accept-Language": "en-US,en;q=0.9",
+                        "Referer": "https://www.tiktok.com/",
+                    }
                 )
+
                 if resp.status_code == 200 and "SIGI_STATE" in resp.text:
                     logger.info(f"✅ ScrapingBee worked for {username} ({region})")
                     return resp.text, f"ScrapingBee ({region})"
+                else:
+                    logger.warning(
+                        f"⚠️ ScrapingBee {region} returned {resp.status_code} for {username}"
+                    )
+
+            except Exception as e:
+                logger.warning(f"⚠️ ScrapingBee region {region} failed: {e}")
+
+    # ========================================
+    # 2️⃣ Playwright Fallback (Hard Mode)
+    # ========================================
+    logger.info(f"🎭 Using Playwright fallback for TikTok @{username}")
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-web-security",
+                    "--disable-features=IsolateOrigins",
+                    "--disable-site-isolation-trials",
+                    "--disable-gpu",
+                    "--no-sandbox",
+                ],
+            )
+
+            context = browser.new_context(
+                viewport={"width": 1366, "height": 900},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+                java_script_enabled=True,
+                bypass_csp=True,
+            )
+
+            page = context.new_page()
+            url = f"https://www.tiktok.com/@{username}"
+
+            page.goto(url, wait_until="networkidle", timeout=120000)
+
+            # Wait for JS hydration
+            page.wait_for_timeout(5000)
+
+            # Try accepting cookie banner
+            try:
+                page.click('button[data-e2e="cookie-banner-accept"]', timeout=5000)
+                logger.info("🍪 Cookie banner accepted")
             except:
                 pass
 
-    # Fallback to Playwright
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context()
-            page = context.new_page()
-            page.goto(f"https://www.tiktok.com/@{username}", timeout=60000)
+            # Heavy scrolling to trigger detection of profile stats
+            for _ in range(8):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(1200)
 
-            page.wait_for_timeout(5000)
+            # Check if TikTok finished loading the profile
+            try:
+                page.wait_for_selector('[data-e2e="user-uniqueId"]', timeout=20000)
+                logger.info("👤 TikTok username detected in Playwright")
+            except:
+                logger.warning("⚠️ TikTok username not found (still returning HTML)")
+
             html = page.content()
             browser.close()
             return html, "Playwright (fallback)"
+
     except Exception as e:
-        logger.error(f"❌ Playwright failed: {e}")
+        logger.error(f"❌ Playwright failed for {username}: {e}")
         return None, "Failed"
+
 
 
 # ============================================================
