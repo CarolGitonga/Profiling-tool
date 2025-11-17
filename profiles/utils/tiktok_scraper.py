@@ -229,4 +229,28 @@ def scrape_tiktok_profile(username: str):
         **profile_data,
     }
 
-    
+# ============================================================
+# ❌ Unscrape Helper
+# ============================================================
+def unscrape_tiktok_profile(username: str) -> bool:
+    """Delete all TikTok-related data for re-scraping."""
+    try:
+        profile = Profile.objects.get(username=username, platform="TikTok")
+
+        # Delete linked records
+        SocialMediaAccount.objects.filter(profile=profile, platform="TikTok").delete()
+        RawPost.objects.filter(profile=profile, platform="TikTok").delete()
+
+        # Delete profile
+        profile.delete()
+
+        logger.info(f"🗑️ Removed TikTok data for {username}")
+        return True
+
+    except Profile.DoesNotExist:
+        return False
+
+    except Exception as e:
+        logger.exception(f"❌ Error deleting TikTok profile {username}: {e}")
+        return False
+
