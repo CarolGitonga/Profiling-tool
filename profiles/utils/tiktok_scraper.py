@@ -6,19 +6,15 @@ import random
 import subprocess
 import shutil
 import sys
-
 from bs4 import BeautifulSoup
 from datetime import datetime
 from textblob import TextBlob
 from scrapingbee import ScrapingBeeClient
 from playwright.sync_api import sync_playwright
-
 from django.conf import settings
 from django.utils import timezone
-
 from profiles.models import Profile, SocialMediaAccount, RawPost
-from profiles.utils.behavior import ensure_behavioral_record
-from profiles.tasks import perform_behavioral_analysis
+
 
 
 logger = logging.getLogger(__name__)
@@ -226,14 +222,11 @@ def scrape_tiktok_profile(username: str):
         saved += 1
 
     logger.info(f"💾 TikTok saved {saved}/{len(posts)} posts for {username}")
-
-    # Trigger behavioral analysis (FIXED)
-    ensure_behavioral_record(profile)
-    perform_behavioral_analysis.delay(profile.id)
-
     return {
         "success": True,
         "source": source,
         "saved_posts": saved,
-        **profile_data
+        **profile_data,
     }
+
+    
