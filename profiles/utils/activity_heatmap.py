@@ -10,8 +10,13 @@ def generate_activity_heatmap(username, platform="Twitter"):
     Generate an activity heatmap (weekday × hour) showing posting frequency.
     Returns a base64-encoded PNG string for embedding in templates.
     """
-    # Fetch all posts for this user/platform
-    posts = RawPost.objects.filter(profile__username=username, profile__platform=platform)
+    #Normalize platform name for DB consistency
+    platform = platform.capitalize()
+    # Platform-aware query
+    if platform.lower() == "all":
+        posts = RawPost.objects.filter(profile__username=username)
+    else:
+        posts = RawPost.objects.filter(profile__username=username, profile__platform=platform)
     timestamps = [p.timestamp for p in posts if p.timestamp]
 
     if not timestamps:
@@ -19,6 +24,11 @@ def generate_activity_heatmap(username, platform="Twitter"):
 
     # Build DataFrame from timestamps
     df = pd.DataFrame({"timestamp": timestamps})
+
+    # Fix timezone & coercion
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+    df = df[df["timestamp"].notna()]
+
     df["day"] = df["timestamp"].dt.day_name()
     df["hour"] = df["timestamp"].dt.hour
 
