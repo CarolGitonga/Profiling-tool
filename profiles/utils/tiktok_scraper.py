@@ -65,63 +65,74 @@ def _get_client():
 # Playwright fallback
 # ============================================================
 def _fetch_with_playwright(username: str):
-    logger.info(f"🎭 Playwright fallback for @{username}")
+    logger.info(f"🎭 Playwright SUPER-STEALTH fallback for @{username}")
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
-                headless=True,
+                headless=False,   # IMPORTANT: headless=False bypasses TikTok JS-wall
                 args=[
                     "--disable-blink-features=AutomationControlled",
-                    "--disable-web-security",
-                    "--disable-site-isolation-trials",
-                    "--disable-gpu",
+                    "--disable-infobars",
                     "--no-sandbox",
-                ]
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    "--disable-web-security",
+                ],
             )
 
             context = browser.new_context(
-                viewport={"width": 1366, "height": 900},
+                viewport={"width": 1366, "height": 768},
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
+                    "Chrome/117.0.5938.92 Safari/537.36"
                 ),
                 java_script_enabled=True,
                 bypass_csp=True,
+                locale="en-US",
+                geolocation={"latitude": 37.7749, "longitude": -122.4194},
+                permissions=["geolocation"],
             )
 
-            page = context.new_page()
-            url = f"https://www.tiktok.com/@{username}"
-            page.goto(url, wait_until="networkidle", timeout=120000)
+            # Remove automation fingerprints
+            context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+                Object.defineProperty(navigator, 'platform', {
+                    get: () => "Win32"
+                });
+                Object.defineProperty(navigator, 'language', {
+                    get: () => "en-US"
+                });
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ["en-US", "en"]
+                });
+            """)
 
-            # Hydrate UI
+            page = context.new_page()
+
+            url = f"https://www.tiktok.com/@{username}"
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+
             page.wait_for_timeout(5000)
 
-            # Try accept cookies
-            try:
-                page.click('button[data-e2e="cookie-banner-accept"]', timeout=5000)
-            except:
-                pass
+            # SECOND navigation is REQUIRED to bypass TikTok’s JS challenge
+            page.goto(url, wait_until="networkidle", timeout=60000)
 
-            # Scroll to force JS hydration
-            for _ in range(6):
-                page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(700)
-
-            try:
-                page.wait_for_selector('[data-e2e="user-uniqueId"]', timeout=15000)
-            except:
-                logger.warning("⚠️ Playwright could not find username immediately.")
+            # Scroll to trigger dynamic loading
+            for _ in range(8):
+                page.mouse.wheel(0, 2000)
+                page.wait_for_timeout(1000)
 
             html = page.content()
             browser.close()
-            return html, "Playwright"
+            return html, "Playwright-SuperStealth"
 
     except Exception as e:
-        logger.error(f"❌ Playwright failed: {e}")
+        logger.error(f"❌ Playwright Stealth failed: {e}")
         return None, "Failed"
-
 
 # ============================================================
 # ScrapingBee → Playwright
