@@ -1,314 +1,209 @@
 import os
-import logging
+import re
+import json
 import random
-import subprocess
-import shutil
-import sys
-
-from bs4 import BeautifulSoup
+import logging
+from datetime import datetime, timezone as dt_timezone
 from textblob import TextBlob
 from scrapingbee import ScrapingBeeClient
-from playwright.sync_api import sync_playwright
-
 from django.conf import settings
-from django.utils import timezone
-
 from profiles.models import Profile, SocialMediaAccount, RawPost
-
+from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================
-# Playwright Environment
+# 🔑 Config
 # ============================================================
-PLAYWRIGHT_PATH = "/opt/render/project/src/.playwright"
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_PATH
-
-PY_EXEC = shutil.which("python3") or shutil.which("python") or sys.executable
-
-# Install browsers if missing
-try:
-    if not os.path.exists(PLAYWRIGHT_PATH) or not os.listdir(PLAYWRIGHT_PATH):
-        os.makedirs(PLAYWRIGHT_PATH, exist_ok=True)
-        subprocess.run(
-            [PY_EXEC, "-m", "playwright", "install", "chromium", "chromium-headless-shell"],
-            check=True,
-            env={**os.environ, "PLAYWRIGHT_BROWSERS_PATH": PLAYWRIGHT_PATH}
-        )
-        logger.info("✅ Installed Playwright Chromium runtime.")
-    else:
-        logger.info("✅ Playwright already installed.")
-except Exception as e:
-    logger.error(f"❌ Playwright install error: {e}")
+SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY", getattr(settings, "SCRAPINGBEE_API_KEY", None))
+REGIONS = ["us", "fr", "de", "gb", "ca"]
 
 
 # ============================================================
-# ScrapingBee Setup
+# 🐝 ScrapingBee Client
 # ============================================================
-SCRAPINGBEE_API_KEY = os.getenv(
-    "SCRAPINGBEE_API_KEY",
-    getattr(settings, "SCRAPINGBEE_API_KEY", None)
-)
-
-REGIONS = ["us", "gb", "fr", "de", "ca", "ke"]
-
-
 def _get_client():
     if not SCRAPINGBEE_API_KEY:
-        logger.error("❌ SCRAPINGBEE_API_KEY missing.")
+        logger.error("❌ SCRAPINGBEE_API_KEY missing in environment.")
         return None
     return ScrapingBeeClient(api_key=SCRAPINGBEE_API_KEY)
 
 
 # ============================================================
-# Playwright fallback
+# 🎭 Playwright Fallback
 # ============================================================
-def _fetch_with_playwright(username: str):
-    logger.info(f"🎭 Playwright SUPER-STEALTH fallback for @{username}")
-
+def _fetch_with_playwright(username: str) -> str:
+    """Launch headless Chromium to render TikTok page and return HTML."""
+    logger.info(f"🎭 Playwright fallback for TikTok user {username}")
+    html = None
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=False,   # IMPORTANT: headless=False bypasses TikTok JS-wall
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-infobars",
-                    "--no-sandbox",
-                    "--disable-gpu",
-                    "--disable-dev-shm-usage",
-                    "--disable-web-security",
-                ],
-            )
-
+            browser = p.chromium.launch(headless=True)
             context = browser.new_context(
-                viewport={"width": 1366, "height": 768},
                 user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/117.0.5938.92 Safari/537.36"
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15"
                 ),
-                java_script_enabled=True,
-                bypass_csp=True,
-                locale="en-US",
-                geolocation={"latitude": 37.7749, "longitude": -122.4194},
-                permissions=["geolocation"],
+                viewport={"width": 1280, "height": 720},
             )
-
-            # Remove automation fingerprints
-            context.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-                Object.defineProperty(navigator, 'platform', {
-                    get: () => "Win32"
-                });
-                Object.defineProperty(navigator, 'language', {
-                    get: () => "en-US"
-                });
-                Object.defineProperty(navigator, 'languages', {
-                    get: () => ["en-US", "en"]
-                });
-            """)
-
             page = context.new_page()
-
             url = f"https://www.tiktok.com/@{username}"
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.goto(url, wait_until="networkidle", timeout=45000)
 
+            # Give TikTok's JS time to render dynamic counters
             page.wait_for_timeout(5000)
+            page.mouse.wheel(0, 2000)
+            page.wait_for_timeout(2000)
 
-            # SECOND navigation is REQUIRED to bypass TikTok’s JS challenge
-            page.goto(url, wait_until="networkidle", timeout=60000)
-
-            # Scroll to trigger dynamic loading
-            for _ in range(8):
-                page.mouse.wheel(0, 2000)
-                page.wait_for_timeout(1000)
+            # Ensure counters exist
+            try:
+                page.wait_for_selector('[data-e2e="followers-count"]', timeout=10000)
+            except Exception:
+                logger.warning(f"⚠️ Counters not found immediately for {username}")
 
             html = page.content()
             browser.close()
-            return html, "Playwright-SuperStealth"
-
+            logger.info(f"✅ Playwright rendered HTML for {username}")
     except Exception as e:
-        logger.error(f"❌ Playwright Stealth failed: {e}")
-        return None, "Failed"
+        logger.exception(f"❌ Playwright failed for {username}: {e}")
+    return html
+
 
 # ============================================================
-# ScrapingBee → Playwright
+# 🔄 Primary Fetch (ScrapingBee → Playwright fallback)
 # ============================================================
 def _fetch_tiktok_html(username: str):
+    """Try ScrapingBee first; if fails, fallback to Playwright."""
     client = _get_client()
+    if not client:
+        return None, "no-client"
 
-    if client:
-        regions = random.sample(REGIONS, len(REGIONS))
-        for region in regions:
-            try:
-                resp = client.get(
-                    f"https://www.tiktok.com/@{username}",
-                    params={
-                        "render_js": "true",
-                        "wait_browser": "networkidle",
-                        "premium_proxy": "true",
-                        "stealth_proxy": "true",
-                        "device": "desktop",
-                        "country_code": region,
-                    },
-                    headers={
-                        "User-Agent": (
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/122.0.0.0 Safari/537.36"
-                        ),
-                        "Accept-Language": "en-US,en;q=0.9",
-                        "Referer": "https://www.tiktok.com/",
-                    }
-                )
+    for region in random.sample(REGIONS, len(REGIONS)):
+        try:
+            resp = client.get(
+                f"https://www.tiktok.com/@{username}",
+                params={
+                    "render_js": "true",
+                    "wait_browser": "networkidle",
+                    "stealth_proxy": "true",
+                    "premium_proxy": "true",
+                    "country_code": region,
+                    "device": "desktop",
+                },
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/126.0.0.0 Safari/537.36"
+                    ),
+                    "Referer": "https://www.tiktok.com/",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            )
+            if resp.status_code == 200 and "SIGI_STATE" in resp.text:
+                logger.info(f"✅ ScrapingBee region={region} succeeded for {username}")
+                return resp.text, f"ScrapingBee ({region})"
+            else:
+                logger.warning(f"⚠️ TikTok returned {resp.status_code} region={region} for {username}")
+        except Exception as e:
+            logger.warning(f"⚠️ Region {region} fails for {username}: {e}")
 
-                if resp.status_code == 200 and "SIGI_STATE" in resp.text:
-                    logger.info(f"✅ ScrapingBee worked ({region}) for {username}")
-                    return resp.text, f"ScrapingBee ({region})"
-
-                logger.warning(
-                    f"⚠️ ScrapingBee returned {resp.status_code} for region={region}"
-                )
-
-            except Exception as e:
-                logger.warning(f"⚠️ ScrapingBee region={region} error: {e}")
-
-    return _fetch_with_playwright(username)
+    # Fallback to Playwright
+    html = _fetch_with_playwright(username)
+    return html, "Playwright (fallback)" if html else "Failed"
 
 
 # ============================================================
-# Parse TikTok Profile
+# 🧠 Parse TikTok Profile
 # ============================================================
-def _parse_tiktok_profile(html: str):
+def _parse_tiktok_profile(html: str) -> dict:
+    """Extract user data from rendered HTML (Playwright or ScrapingBee)."""
     soup = BeautifulSoup(html, "html.parser")
 
-    def pick(tag):
+    def safe_text(tag):
         el = soup.select_one(f'[data-e2e="{tag}"]')
-        return el.get_text(strip=True) if el else ""
+        return el.text.strip() if el else ""
 
-    def to_int(s):
-        s = s.upper().replace(",", "")
-        try:
-            if "K" in s: return int(float(s.replace("K", "")) * 1000)
-            if "M" in s: return int(float(s.replace("M", "")) * 1_000_000)
-            if "B" in s: return int(float(s.replace("B", "")) * 1_000_000_000)
-            return int(s)
-        except:
-            return 0
+    def parse_count(val: str) -> int:
+        """Convert 1.2M / 3K / 450 into integer."""
+        val = val.replace(",", "").upper()
+        if "B" in val: return int(float(val.replace("B", "")) * 1_000_000_000)
+        if "M" in val: return int(float(val.replace("M", "")) * 1_000_000)
+        if "K" in val: return int(float(val.replace("K", "")) * 1_000)
+        return int(val) if val.isdigit() else 0
 
-    avatar_el = soup.select_one('[data-e2e="user-avatar"] img[src]')
-    avatar_url = avatar_el["src"] if avatar_el else ""
+    username = safe_text("user-title")
+    full_name = safe_text("user-subtitle")
+    bio = safe_text("user-bio")
+    followers = parse_count(safe_text("followers-count"))
+    following = parse_count(safe_text("following-count"))
+    likes = parse_count(safe_text("likes-count"))
+    avatar = (
+        soup.select_one('[data-e2e="user-avatar"] img[src]')["src"]
+        if soup.select_one('[data-e2e="user-avatar"] img[src]')
+        else ""
+    )
 
     return {
-        "username": pick("user-uniqueId"),
-        "full_name": pick("user-title") or pick("user-subtitle"),
-        "bio": pick("user-bio"),
-        "followers": to_int(pick("followers-count")),
-        "following": to_int(pick("following-count")),
-        "likes": to_int(pick("likes-count")),
-        "avatar": avatar_url,
+        "username": username,
+        "full_name": full_name,
+        "bio": bio,
+        "followers": followers,
+        "following": following,
+        "likes": likes,
+        "avatar": avatar,
     }
 
 
 # ============================================================
-# Parse TikTok Posts
-# ============================================================
-def extract_tiktok_posts_from_html(html, max_posts=20):
-    soup = BeautifulSoup(html, "html.parser")
-    posts = []
-
-    items = soup.select("div[data-e2e='user-post-item'], a[data-e2e='user-post-item']")
-
-    def to_int(s):
-        s = s.upper().replace(",", "")
-        if "K" in s: return int(float(s.replace("K", "")) * 1000)
-        if "M" in s: return int(float(s.replace("M", "")) * 1_000_000)
-        return int(s) if s.isdigit() else 0
-
-    for item in items[:max_posts]:
-        caption = item.get_text(strip=True)
-        likes_el = item.select_one("strong[data-e2e='likes-count']")
-        comments_el = item.select_one("strong[data-e2e='comment-count']")
-
-        posts.append({
-            "content": caption,
-            "likes": to_int(likes_el.text) if likes_el else 0,
-            "comments": to_int(comments_el.text) if comments_el else 0,
-            "timestamp": timezone.now(),
-            "sentiment": TextBlob(caption).sentiment.polarity if caption else 0.0,
-        })
-
-    return posts
-
-
-# ============================================================
-# Main Scraper
+# 🚀 Main Scraper
 # ============================================================
 def scrape_tiktok_profile(username: str):
+    """Fetch TikTok profile, parse, and save to DB."""
     html, source = _fetch_tiktok_html(username)
-
     if not html:
         return {"success": False, "reason": f"Failed to fetch HTML: {source}"}
 
-    profile_data = _parse_tiktok_profile(html)
-    if not profile_data["username"]:
-        return {"success": False, "reason": "Failed to parse TikTok profile"}
+    data = _parse_tiktok_profile(html)
+    if not data["username"]:
+        return {"success": False, "reason": "No valid TikTok profile parsed."}
 
-    posts = extract_tiktok_posts_from_html(html)
-
+    # Persist
     profile, _ = Profile.objects.update_or_create(
         username=username,
         platform="TikTok",
         defaults={
-            "full_name": profile_data.get("full_name"),
-            "avatar_url": profile_data.get("avatar"),
-        }
+            "full_name": data["full_name"],
+            "avatar_url": data["avatar"],
+        },
     )
 
     SocialMediaAccount.objects.update_or_create(
         profile=profile,
         platform="TikTok",
         defaults={
-            "bio": profile_data["bio"],
-            "followers": profile_data["followers"],
-            "following": profile_data["following"],
-            "posts_collected": len(posts),
+            "bio": data["bio"],
+            "followers": data["followers"],
+            "following": data["following"],
+            "posts_collected": 0,
             "is_private": False,
             "external_url": "",
-        }
+        },
     )
 
-    saved_posts = 0
-    for post in posts:
-        RawPost.objects.update_or_create(
-            profile=profile,
-            platform="TikTok",
-            post_id=f"{username}-{hash(post['content'])}",
-            defaults={
-                "content": post["content"],
-                "likes": post["likes"],
-                "comments": post["comments"],
-                "timestamp": post["timestamp"],
-                "sentiment_score": post["sentiment"],
-            }
-        )
-        saved_posts += 1
+    logger.info(
+        f"💾 Saved TikTok profile: {username}, followers={data['followers']}, following={data['following']}, likes={data['likes']}, source={source}"
+    )
 
-    return {
-        "success": True,
-        "source": source,
-        "saved_posts": saved_posts,
-        **profile_data,
-    }
+    return {"success": True, "source": source, **data}
 
 
 # ============================================================
-# Unscrape Helper
+# ❌ Unscrape Helper
 # ============================================================
 def unscrape_tiktok_profile(username: str) -> bool:
+    """Delete all TikTok-related data for re-scraping."""
     try:
         profile = Profile.objects.get(username=username, platform="TikTok")
         SocialMediaAccount.objects.filter(profile=profile, platform="TikTok").delete()
@@ -316,10 +211,8 @@ def unscrape_tiktok_profile(username: str) -> bool:
         profile.delete()
         logger.info(f"🗑️ Removed TikTok data for {username}")
         return True
-
     except Profile.DoesNotExist:
         return False
-
     except Exception as e:
-        logger.error(f"❌ Error deleting TikTok profile {username}: {e}")
+        logger.exception(f"❌ Error deleting TikTok profile {username}: {e}")
         return False
