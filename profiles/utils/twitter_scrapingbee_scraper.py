@@ -192,13 +192,13 @@ def scrape_twitter_profile(username: str):
     # ============================================================
     profile, _ = Profile.objects.get_or_create(
         username=username,
-        platform="Twitter",
+        platform="twitter",
         defaults={"full_name": title, "avatar_url": avatar_url},
     )
     profile.avatar_url = avatar_url or profile.avatar_url
     profile.save(update_fields=["avatar_url"])
 
-    sm_account, _ = SocialMediaAccount.objects.get_or_create(profile=profile, platform="Twitter")
+    sm_account, _ = SocialMediaAccount.objects.get_or_create(profile=profile, platform="twitter")
     sm_account.bio = bio
     sm_account.followers = followers
     sm_account.following = following
@@ -210,18 +210,18 @@ def scrape_twitter_profile(username: str):
         text = text.strip()
         if not text:
             continue
-        if not RawPost.objects.filter(profile=profile, platform="Twitter", content__icontains=text[:50]).exists():
+        if not RawPost.objects.filter(profile=profile, platform="twitter", content__icontains=text[:50]).exists():
             polarity = round(TextBlob(text).sentiment.polarity, 3)
             RawPost.objects.create(
                 profile=profile,
-                platform="Twitter",
+                platform="twitter",
                 content=text,
                 timestamp=timezone.now(),
                 sentiment_score=polarity,
             )
             saved_count += 1
 
-    total_posts = RawPost.objects.filter(profile=profile, platform="Twitter").count()
+    total_posts = RawPost.objects.filter(profile=profile, platform="twitter").count()
     profile.posts_count = total_posts
     sm_account.posts_collected = total_posts
     profile.save(update_fields=["posts_count"])
