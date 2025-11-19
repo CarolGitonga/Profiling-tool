@@ -247,26 +247,19 @@ def profile_dashboard(request, pk):
     return render(request, "profiles/dashboard.html", context) 
 
 
-#BEHAVIORAL DASHBOARD
+# BEHAVIORAL DASHBOARD
 def behavioral_dashboard(request, username, platform):
     """
     Unified behavioral dashboard for ANY platform (Twitter, Instagram, TikTok, GitHub).
     Clean, optimized, multi-platform safe.
     """
-    # 1️⃣ Load Profile (for a specific platform)
+
+    # 1️⃣ Load Profile and Social Media Account
     profile = get_object_or_404(Profile, username=username, platform=platform)
-
-    # Load the platform's SocialMediaAccount entry
-    social = (
-        SocialMediaAccount.objects
-        .filter(profile=profile, platform=platform)
-        .first()
-    )
-
-    # Behavior analysis if available
+    social = SocialMediaAccount.objects.filter(profile=profile, platform=platform).first()
     analysis = getattr(profile, "behavior_analysis", None)
 
-    # 2️⃣ Load posts safely (this platform only)
+    # 2️⃣ Load posts for this platform only
     posts_qs = (
         RawPost.objects
         .filter(profile=profile, platform=platform)
@@ -274,45 +267,45 @@ def behavioral_dashboard(request, username, platform):
         .values("timestamp", "likes", "comments", "sentiment_score", "content")
     )
     posts = list(posts_qs)
-    # Sentiment Pie Chart
-    try:
-        sentiment_pie = generate_sentiment_distribution(username=username, platform="all")
-    except Exception:
-        sentiment_pie = None
 
-    # 3️⃣ Sentiment Timeline
+    # 3️⃣ Sentiment Pie (🔴 ALL PLATFORMS — FIXED)
+    try:
+        sentiment_pie_raw = generate_sentiment_distribution(username=username, platform="all")
+    except Exception:
+        sentiment_pie_raw = [0, 0, 0]
+
+    # Convert to JSON for ChartJS
+    sentiment_pie = json.dumps(sentiment_pie_raw)
+
+    # 4️⃣ Sentiment Timeline (platform-only)
     try:
         sentiment_labels, sentiment_values_json = generate_sentiment_timeline(posts)
-        sentiment_values = json.loads(sentiment_values_json)
     except Exception:
-        sentiment_labels, sentiment_values_json, sentiment_values = [], "[]", []
+        sentiment_labels, sentiment_values_json = [], "[]"
 
-    # 4️⃣ Engagement Timeline
+    # 5️⃣ Engagement Timeline
     try:
         engagement_labels, engagement_values = generate_engagement_timeline(posts)
     except Exception:
         engagement_labels, engagement_values = [], []
 
-    # 5️⃣ Post Frequency Timeline
+    # 6️⃣ Posting Frequency Timeline (HTML graph)
     post_timeline_html = generate_post_timeline(username, platform)
 
-    # 6️⃣ Activity Heatmap
+    # 7️⃣ Activity Heatmap
     try:
         activity_heatmap_image = generate_activity_heatmap(username, platform)
     except Exception:
         activity_heatmap_image = None
 
-    # 7️⃣ Entity Graph (NER Clustering)
+    # 8️⃣ Entity Graph + Clusters
     entity_graph_url = None
     cluster_summaries = []
-    cluster_colors = [
-        "#007bff", "#28a745", "#17a2b8", "#ffc107",
-        "#dc3545", "#6f42c1", "#20c997"
-    ]
+    cluster_colors = ["#007bff", "#28a745", "#17a2b8", "#ffc107",
+                      "#dc3545", "#6f42c1", "#20c997"]
 
     try:
         graph_path, cluster_summaries = generate_entity_graph(username, platform)
-
         if graph_path:
             filename = os.path.basename(graph_path)
             media_url = settings.MEDIA_URL or "/media/"
@@ -326,24 +319,18 @@ def behavioral_dashboard(request, username, platform):
     except Exception as e:
         logger.warning(f"Entity graph generation failed for {username}: {e}")
 
-    # 8️⃣ Sentiment Pie Chart
-    try:
-        sentiment_pie = generate_sentiment_distribution(sentiment_values)
-    except Exception:
-        sentiment_pie = None
-
     # 9️⃣ Influence Metrics
     followers = int(getattr(social, "followers", 0) or 0) if social else 0
     following = int(getattr(social, "following", 0) or 0) if social else 0
     network_size = followers + following
-    sentiment_score = float(getattr(analysis, "sentiment_score", 0.0) or 0.0)
 
+    sentiment_score = float(getattr(analysis, "sentiment_score", 0.0) or 0.0)
     influence_score = (
         round(network_size * (sentiment_score + 1.0), 2)
         if network_size else 0.0
     )
 
-    # 🔟 Keyword Extraction + Wordcloud
+    # 🔟 Keywords + Wordcloud
     try:
         top_keywords = extract_keywords(posts, analysis)
     except Exception:
@@ -360,15 +347,22 @@ def behavioral_dashboard(request, username, platform):
         "platform": platform,
         "social": social,
         "analysis": analysis,
+
         "followers": followers,
         "following": following,
         "network_size": network_size,
         "influence_score": influence_score,
-        "sentiment_pie": json.dumps(sentiment_pie),
+
+        # Sentiment Pie (ALL platforms)
+        "sentiment_pie": sentiment_pie,
+
+        # Timelines
         "sentiment_timeline_labels": sentiment_labels,
         "sentiment_timeline_values": sentiment_values_json,
         "engagement_labels": engagement_labels,
         "engagement_values": engagement_values,
+
+        # Visuals
         "activity_heatmap_image": activity_heatmap_image,
         "timeline_html": post_timeline_html,
         "entity_graph_url": entity_graph_url,
