@@ -228,7 +228,8 @@ def parse_instagram_html(html: str) -> dict:
             pass
 
     full_name = username = bio = avatar = ""
-    followers = following = posts = 0
+    followers = following = posts_count = 0
+    recent_posts: list[dict] = []
 
     if json_data:
         full_name = json_data.get("name", "")
@@ -261,7 +262,7 @@ def parse_instagram_html(html: str) -> dict:
         if m:
             followers = _to_int_safe(m.group(1))
             following = _to_int_safe(m.group(2))
-            posts = _to_int_safe(m.group(3))
+            posts_count = _to_int_safe(m.group(3))
 
     # -------------------------------
     # 3️⃣ Try window._sharedData JSON
@@ -286,9 +287,11 @@ def parse_instagram_html(html: str) -> dict:
                 avatar = user_data.get("profile_pic_url_hd", avatar)
                 followers = user_data.get("edge_followed_by", {}).get("count", followers)
                 following = user_data.get("edge_follow", {}).get("count", following)
-                posts = user_data.get("edge_owner_to_timeline_media", {}).get(
-                    "count", posts
+                posts_count = user_data.get("edge_owner_to_timeline_media", {}).get(
+                    "count", posts_count
                 )
+                if not recent_posts:
+                    recent_posts = extract_posts_from_user_data(user_data)
         except Exception as e:
             logger.warning(f"⚠️ Failed to parse window._sharedData for @{username}: {e}")
 
@@ -313,9 +316,11 @@ def parse_instagram_html(html: str) -> dict:
                 avatar = user_data.get("profile_pic_url_hd", avatar)
                 followers = user_data.get("edge_followed_by", {}).get("count", followers)
                 following = user_data.get("edge_follow", {}).get("count", following)
-                posts = user_data.get("edge_owner_to_timeline_media", {}).get(
-                    "count", posts
+                posts_count = user_data.get("edge_owner_to_timeline_media", {}).get(
+                    "count", posts_count
                 )
+                if not recent_posts:
+                    recent_posts = extract_posts_from_user_data(user_data)
         except Exception as e:
             logger.warning(
                 f"⚠️ Failed to parse __additionalDataLoaded JSON for @{username}: {e}"
@@ -329,9 +334,10 @@ def parse_instagram_html(html: str) -> dict:
         "full_name": full_name,
         "followers": followers,
         "following": following,
-        "posts": posts,
+        "posts": posts_count,
         "bio": bio,
         "avatar": avatar,
+        "recent_posts": recent_posts,
     }
 
 
