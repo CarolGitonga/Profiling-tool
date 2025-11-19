@@ -168,6 +168,54 @@ def _to_int_safe(value: str) -> int:
     except Exception:
         return 0
 
+import requests
+
+def fetch_recent_posts_api(username: str):
+    """
+    Fetch recent Instagram posts using the public web_profile_info API.
+    Works without login.
+    """
+    url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "X-IG-App-ID": "936619743392459"
+    }
+
+    try:
+        resp = requests.get(url, headers=headers)
+        if resp.status_code != 200:
+            logger.warning(f"⚠️ Instagram API returned {resp.status_code} for {username}")
+            return []
+
+        data = resp.json()
+        user = data.get("data", {}).get("user", {})
+        media = user.get("edge_owner_to_timeline_media", {})
+        edges = media.get("edges", [])
+
+        posts = []
+        for edge in edges:
+            node = edge.get("node", {})
+
+            caption = ""
+            cap_edges = node.get("edge_media_to_caption", {}).get("edges")
+            if cap_edges:
+                caption = cap_edges[0].get("node", {}).get("text", "")
+
+            posts.append({
+                "caption": caption,
+                "timestamp": node.get("taken_at_timestamp"),
+                "likes": node.get("edge_liked_by", {}).get("count", 0),
+                "comments": node.get("edge_media_to_comment", {}).get("count", 0),
+            })
+
+        return posts
+
+    except Exception as e:
+        logger.error(f"❌ Instagram API failed for @{username}: {e}")
+        return []
+
+
 # Extract posts from user_data JSON
 def extract_posts_from_user_data(user_data) -> list[dict]:
     """
@@ -360,7 +408,8 @@ def scrape_instagram_profile(username: str) -> dict:
     bio = parsed.get("bio") or ""
     followers = parsed.get("followers") or 0
     following = parsed.get("following") or 0
-    recent_posts = parsed.get("recent_posts") or []
+    recent_posts = fetch_recent_posts_api(ig_username)
+
     # 1️⃣ Upsert Profile
     profile, _ = Profile.objects.get_or_create(
         username=ig_username,
