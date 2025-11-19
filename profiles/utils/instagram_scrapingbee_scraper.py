@@ -2,7 +2,10 @@ import os, sys, shutil, subprocess, logging, random, re, json, base64
 from bs4 import BeautifulSoup
 from django.conf import settings
 from scrapingbee import ScrapingBeeClient
-
+from datetime import datetime, timezone as dt_timezone
+from profiles.models import Profile, SocialMediaAccount, RawPost
+from django.utils import timezone as dj_timezone
+from textblob import TextBlob
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -165,6 +168,43 @@ def _to_int_safe(value: str) -> int:
     except Exception:
         return 0
 
+# Extract posts from user_data JSON
+def extract_posts_from_user_data(user_data) -> list[dict]:
+    """
+    Extract recent posts (caption, timestamp, likes, comments) from
+    Instagram's user_data JSON, suitable for RawPost.
+    """
+    posts = []
+    media = user_data.get("edge_owner_to_timeline_media") or {}
+    edges = media.get("edges") or []
+    for edge in edges:
+        node = edge.get("node") or {}
+        caption_edges = node.get("edge_media_to_caption", {}).get("edges") or []
+        if caption_edges:
+            caption = caption_edges[0].get("node", {}).get("text", "") or ""
+        else:
+            caption = ""
+        taken_at = node.get("taken_at_timestamp")
+        if taken_at:
+            try:
+                ts = datetime.fromtimestamp(int(taken_at), tz=dt_timezone.utc)
+            except Exception:
+                ts = None
+        else:
+            ts = None
+        likes = (node.get("edge_liked_by") or {}).get("count", 0)
+        comments = (node.get("edge_media_to_comment") or {}).get("count", 0)
+        posts.append(
+            {
+                "caption": caption,
+                "timestamp": ts,
+                "likes": likes,
+                "comments": comments,
+            }
+        )
+    return posts
+
+
 # ============================================================
 # 🧩 HTML Parser
 # ============================================================
@@ -173,8 +213,6 @@ def parse_instagram_html(html: str) -> dict:
     Parse Instagram profile HTML robustly using JSON-LD, OG tags,
     or embedded JSON (window._sharedData / __additionalDataLoaded).
     """
-    import json, re
-    from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(html, "html.parser")
 
@@ -301,8 +339,87 @@ def parse_instagram_html(html: str) -> dict:
 # 🚀 Public Function
 # ============================================================
 def scrape_instagram_profile(username: str) -> dict:
+    """
+    Fetch an Instagram profile + recent posts, persist them to the DB,
+    and return a summary suitable for the behavioral dashboard.
+    """ 
     html, source = _fetch_instagram_html(username)
     if not html:
         return {"success": False, "error": f"Failed to fetch HTML: {source}"}
     parsed = parse_instagram_html(html)
-    return {"success": True, "source": source, **parsed}
+
+    ig_username = parsed.get("username") or username
+    full_name = parsed.get("full_name") or ig_username
+    avatar = parsed.get("avatar") or ""
+    bio = parsed.get("bio") or ""
+    followers = parsed.get("followers") or 0
+    following = parsed.get("following") or 0
+    recent_posts = parsed.get("recent_posts") or []
+    # 1️⃣ Upsert Profile
+    profile, _ = Profile.objects.get_or_create(
+        username=ig_username,
+        platform="instagram",
+        defaults={"full_name": full_name, "avatar_url": avatar},
+    )
+    # keep profile fresh
+    profile.full_name = full_name or profile.full_name
+    profile.avatar_url = avatar or profile.avatar_url
+    profile.save(update_fields=["full_name", "avatar_url"])
+    # 2️⃣ Upsert SocialMediaAccount
+    sm_account, _ = SocialMediaAccount.objects.get_or_create(
+        profile=profile,
+        platform="instagram",
+    )
+    sm_account.bio = bio
+    sm_account.followers = followers
+    sm_account.following = following
+    sm_account.save()
+    # 3️⃣ Save posts into RawPost with sentiment + timestamp
+    saved_count = 0
+    for p in recent_posts[:50]:   # limit to 50 for safety
+        caption = (p.get("caption") or "").strip()
+        if not caption:
+            continue
+        ts = p.get("timestamp") or dj_timezone.now()
+        likes = p.get("likes") or 0
+        comments = p.get("comments") or 0
+        # crude duplicate check by prefix of caption
+        if RawPost.objects.filter(
+            profile=profile,
+            platform="instagram",
+            content__icontains=caption[:60],
+        ).exists():
+            continue
+        polarity = round(TextBlob(caption).sentiment.polarity, 3)
+        RawPost.objects.create(
+            profile=profile,
+            platform="instagram",
+            content=caption,
+            timestamp=ts,
+            likes=likes,
+            comments=comments,
+            sentiment_score=polarity,
+        )
+        saved_count += 1
+    total_posts = RawPost.objects.filter(profile=profile, platform="instagram").count()
+    profile.posts_count = total_posts
+    profile.save(update_fields=["posts_count"])
+
+    sm_account.posts_collected = total_posts
+    sm_account.save(update_fields=["posts_collected"])
+    logger.info(
+        f"💾 Instagram @{ig_username}: saved {saved_count}/{len(recent_posts)} posts; "
+        f"followers={followers}, following={following}, source={source}"
+    )
+    return {
+        "success": True,
+        "source": source,
+        "username": ig_username,
+        "full_name": full_name,
+        "bio": bio,
+        "avatar_url": avatar,
+        "followers": followers,
+        "following": following,
+        "posts_saved": saved_count,
+        "total_posts": total_posts,
+    }
