@@ -435,7 +435,15 @@ def scrape_instagram_profile(username: str) -> dict:
         caption = (p.get("caption") or "").strip()
         if not caption:
             continue
-        ts = p.get("timestamp") or dj_timezone.now()
+        raw_ts = p.get("timestamp")
+        ts = None
+        if raw_ts:
+            try:
+                ts = datetime.fromtimestamp(int(raw_ts), tz=dj_timezone.utc)
+            except Exception:
+                ts = dj_timezone.now()
+        else:
+            ts = dj_timezone.now()
         likes = p.get("likes") or 0
         comments = p.get("comments") or 0
         # crude duplicate check by prefix of caption
