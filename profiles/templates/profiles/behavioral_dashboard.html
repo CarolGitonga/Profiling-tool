@@ -201,17 +201,20 @@
 <!-- Chart.js only used for sentiment pie -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  const sentimentData = {{ sentiment_pie|default:"[0,0,0]"|safe }};
-  new Chart(document.getElementById('sentimentPie'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Positive', 'Neutral', 'Negative'],
-      datasets: [{
-        data: sentimentData,
-        backgroundColor: ['#28a745', '#ffc107', '#dc3545']
-      }]
-    },
-    options: { plugins: { legend: { position: 'bottom' } } }
-  });
+    let sentimentValues = {{ sentiment_pie|safe }};  
+    // sentimentValues = [12, 4, 6]
+
+    const ctx = document.getElementById('sentimentPie').getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ["Positive", "Neutral", "Negative"],
+            datasets: [{
+                data: sentimentValues,
+                backgroundColor: ['#28a745', '#ffc107', '#dc3545']
+            }]
+        }
+    });
 </script>
+
 {% endblock %}

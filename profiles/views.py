@@ -364,7 +364,7 @@ def behavioral_dashboard(request, username, platform):
         "following": following,
         "network_size": network_size,
         "influence_score": influence_score,
-        "sentiment_pie": sentiment_pie,
+        "sentiment_pie": json.dumps(sentiment_pie),
         "sentiment_timeline_labels": sentiment_labels,
         "sentiment_timeline_values": sentiment_values_json,
         "engagement_labels": engagement_labels,
