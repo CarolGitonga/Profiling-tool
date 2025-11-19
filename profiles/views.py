@@ -274,6 +274,11 @@ def behavioral_dashboard(request, username, platform):
         .values("timestamp", "likes", "comments", "sentiment_score", "content")
     )
     posts = list(posts_qs)
+    # Sentiment Pie Chart
+    try:
+        sentiment_pie = generate_sentiment_distribution(username=username, platform="all")
+    except Exception:
+        sentiment_pie = None
 
     # 3️⃣ Sentiment Timeline
     try:
