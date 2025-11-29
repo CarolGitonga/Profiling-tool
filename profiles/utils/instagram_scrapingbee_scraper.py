@@ -413,7 +413,7 @@ def scrape_instagram_profile(username: str) -> dict:
     # 1️⃣ Upsert Profile
     profile, _ = Profile.objects.get_or_create(
         username=ig_username,
-        platform="instagram",
+        platform="Instagram",
         defaults={"full_name": full_name, "avatar_url": avatar},
     )
     # keep profile fresh
@@ -423,7 +423,7 @@ def scrape_instagram_profile(username: str) -> dict:
     # 2️⃣ Upsert SocialMediaAccount
     sm_account, _ = SocialMediaAccount.objects.get_or_create(
         profile=profile,
-        platform="instagram",
+        platform="Instagram",
     )
     sm_account.bio = bio
     sm_account.followers = followers
@@ -449,14 +449,14 @@ def scrape_instagram_profile(username: str) -> dict:
         # crude duplicate check by prefix of caption
         if RawPost.objects.filter(
             profile=profile,
-            platform="instagram",
+            platform="Instagram",
             content__icontains=caption[:60],
         ).exists():
             continue
         polarity = round(TextBlob(caption).sentiment.polarity, 3)
         RawPost.objects.create(
             profile=profile,
-            platform="instagram",
+            platform="Instagram",
             content=caption,
             timestamp=ts,
             likes=likes,
@@ -464,7 +464,7 @@ def scrape_instagram_profile(username: str) -> dict:
             sentiment_score=polarity,
         )
         saved_count += 1
-    total_posts = RawPost.objects.filter(profile=profile, platform="instagram").count()
+    total_posts = RawPost.objects.filter(profile=profile, platform="Instagram").count()
     profile.posts_count = total_posts
     profile.save(update_fields=["posts_count"])
 
