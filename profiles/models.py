@@ -13,7 +13,7 @@ class Profile(models.Model):
     platform = models.CharField(max_length=100, choices=PLATFORM_CHOICES)
     avatar_url = models.URLField(max_length=2000, blank=True, null=True)
     date_profiled = models.DateTimeField(auto_now_add=True)
-    posts_count = models.PositiveIntegerField(default=0) 
+    
 
     # Optional fields (platform-specific)
     profile_created_at = models.DateTimeField(blank=True, null=True)  # For Twitter, Instagram
@@ -36,7 +36,8 @@ class Profile(models.Model):
     
 class SocialMediaAccount(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
-    platform = models.CharField(max_length=100)
+    platform = models.CharField(max_length=100, choices=Profile.PLATFORM_CHOICES)
+
 
     # Common fields
     bio = models.TextField(blank=True, null=True)
@@ -68,7 +69,7 @@ class SocialMediaAccount(models.Model):
 
 class RawPost(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
-    platform = models.CharField(max_length=50)
+    platform = models.CharField(max_length=50, choices=Profile.PLATFORM_CHOICES)
     post_id = models.CharField(max_length=255, blank=True, null=True)
     content = models.TextField()
     timestamp = models.DateTimeField(blank=True, null=True)
