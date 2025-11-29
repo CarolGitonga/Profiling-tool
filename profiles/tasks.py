@@ -249,7 +249,8 @@ def scrape_instagram_task(self, username: str) -> dict:
         bio = data.get("bio", "")
         followers = data.get("followers", 0)
         following = data.get("following", 0)
-        posts = data.get("posts", 0)   # FIXED
+        posts_saved = data.get("posts_saved", 0)    # IMPORTANT
+        total_posts = data.get("total_posts", 0)
         external_url = data.get("external_url")
         source = data.get("source", "unknown")
 
@@ -266,6 +267,7 @@ def scrape_instagram_task(self, username: str) -> dict:
             )
             profile.full_name = full_name
             profile.avatar_url = avatar
+            profile.posts_collected = total_posts   # FIXED
             profile.save()
 
             SocialMediaAccount.objects.update_or_create(
@@ -275,7 +277,7 @@ def scrape_instagram_task(self, username: str) -> dict:
                     "bio": bio,
                     "followers": followers,
                     "following": following,
-                    "posts_collected": posts,
+                    "posts_collected": total_posts,
                     "is_private": is_private,
                     "external_url": external_url,
                     "source": source,  # NEW
@@ -290,6 +292,8 @@ def scrape_instagram_task(self, username: str) -> dict:
             "success": True,
             "username": username,
             "platform": "Instagram",
+            "posts_saved": posts_saved,
+            "total_posts": total_posts,
             "data": data,  # NEW
         }
 
